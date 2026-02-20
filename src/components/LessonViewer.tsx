@@ -23,11 +23,12 @@ interface LessonViewerProps {
   translations: UITranslations;
   onLessonComplete?: (lessonId: string, completed: boolean) => void;
   language: LanguageCode;
+  supportEmail?: string;
 }
 
 export function LessonViewer({
   lessonId, onSelectLesson, modules,
-  translations, onLessonComplete, language,
+  translations, onLessonComplete, language, supportEmail,
 }: LessonViewerProps) {
   const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
 
@@ -80,6 +81,7 @@ export function LessonViewer({
         prevLesson={prev}
         nextLesson={next}
         onSelectLesson={onSelectLesson}
+        supportEmail={supportEmail}
       />
     </div>
   );

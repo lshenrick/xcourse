@@ -24,6 +24,7 @@ interface MemberArea {
   icon: string;
   button_text: string;
   lang_code: string;
+  support_email: string;
   active: boolean;
   position: number;
 }
@@ -34,7 +35,7 @@ export function MemberAreasManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<MemberArea>>({});
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ slug: "", title: "", subtitle: "", icon: "", button_text: "Acessar", lang_code: "pt" });
+  const [newForm, setNewForm] = useState({ slug: "", title: "", subtitle: "", icon: "", button_text: "Acessar", lang_code: "pt", support_email: "" });
   const [saving, setSaving] = useState(false);
 
   const fetchAreas = async () => {
@@ -63,13 +64,14 @@ export function MemberAreasManager() {
       icon: newForm.icon.trim(),
       button_text: newForm.button_text.trim() || "Acessar",
       lang_code: newForm.lang_code,
+      support_email: newForm.support_email.trim() || undefined,
       position: areas.length,
     });
     if (error) {
       toast.error(error.message.includes("duplicate") ? "Este slug já existe" : `Erro ao criar área: ${error.message}`);
     } else {
       toast.success("Área criada!");
-      setNewForm({ slug: "", title: "", subtitle: "", icon: "", button_text: "Acessar", lang_code: "pt" });
+      setNewForm({ slug: "", title: "", subtitle: "", icon: "", button_text: "Acessar", lang_code: "pt", support_email: "" });
       setShowNew(false);
       fetchAreas();
     }
@@ -78,7 +80,7 @@ export function MemberAreasManager() {
 
   const handleEdit = (area: MemberArea) => {
     setEditingId(area.id);
-    setEditForm({ slug: area.slug, title: area.title, subtitle: area.subtitle, icon: area.icon, button_text: area.button_text, lang_code: area.lang_code || "pt" });
+    setEditForm({ slug: area.slug, title: area.title, subtitle: area.subtitle, icon: area.icon, button_text: area.button_text, lang_code: area.lang_code || "pt", support_email: area.support_email || "" });
   };
 
   const handleSaveEdit = async () => {
@@ -92,6 +94,7 @@ export function MemberAreasManager() {
       icon: editForm.icon?.trim(),
       button_text: editForm.button_text?.trim() || "Acessar",
       lang_code: editForm.lang_code || "pt",
+      support_email: editForm.support_email?.trim() || undefined,
     }).eq("id", editingId);
     if (error) {
       toast.error(error.message.includes("duplicate") ? "Este slug já existe" : "Erro ao salvar");
@@ -199,6 +202,17 @@ export function MemberAreasManager() {
                 className="mt-1"
               />
             </div>
+            <div className="sm:col-span-2">
+              <label className="text-xs text-muted-foreground">Email de Suporte</label>
+              <Input
+                type="email"
+                placeholder="suporte@exemplo.com"
+                value={newForm.support_email}
+                onChange={(e) => setNewForm({ ...newForm, support_email: e.target.value })}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Exibido na tela de login e rodapé das aulas</p>
+            </div>
           </div>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setShowNew(false)}>Cancelar</Button>
@@ -276,6 +290,17 @@ export function MemberAreasManager() {
                         onChange={(e) => setEditForm({ ...editForm, button_text: e.target.value })}
                         className="mt-1"
                       />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs text-muted-foreground">Email de Suporte</label>
+                      <Input
+                        type="email"
+                        placeholder="suporte@exemplo.com"
+                        value={editForm.support_email || ""}
+                        onChange={(e) => setEditForm({ ...editForm, support_email: e.target.value })}
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Exibido na tela de login e rodapé das aulas</p>
                     </div>
                   </div>
                   <div className="flex gap-2 justify-end">

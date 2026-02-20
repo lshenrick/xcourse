@@ -15,6 +15,7 @@ interface AreaContext {
   slug: string;
   title: string;
   langCode: LanguageCode;
+  supportEmail: string;
 }
 
 const Index = () => {
@@ -39,6 +40,7 @@ const Index = () => {
         slug: lang.slug,
         title: `${lang.mestraTitle} ${lang.mestraName}`,
         langCode: lang.code,
+        supportEmail: "contact@everwynventures.com",
       });
       setAreaLoading(false);
       return;
@@ -47,13 +49,13 @@ const Index = () => {
     // Try database
     supabase
       .from("member_areas")
-      .select("slug, title, lang_code")
+      .select("slug, title, lang_code, support_email")
       .eq("slug", slug)
       .eq("active", true)
       .single()
       .then(({ data }) => {
         if (data) {
-          setArea({ slug: data.slug, title: data.title, langCode: (data.lang_code || "pt") as LanguageCode });
+          setArea({ slug: data.slug, title: data.title, langCode: (data.lang_code || "pt") as LanguageCode, supportEmail: data.support_email || "contact@everwynventures.com" });
         }
         setAreaLoading(false);
       });
@@ -211,6 +213,7 @@ const Index = () => {
               translations={t}
               onLessonComplete={handleLessonComplete}
               language={area.langCode}
+              supportEmail={area.supportEmail}
             />
           )}
         </main>

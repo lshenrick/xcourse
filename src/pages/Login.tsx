@@ -26,6 +26,7 @@ interface AreaInfo {
   title: string;
   subtitle: string;
   langCode: LanguageCode;
+  supportEmail: string;
 }
 
 const Login = () => {
@@ -50,6 +51,7 @@ const Login = () => {
         title: `${lang.mestraTitle} ${lang.mestraName}`,
         subtitle: lang.courseName,
         langCode: lang.code,
+        supportEmail: "contact@everwynventures.com",
       });
       setChecking(false);
       return;
@@ -58,7 +60,7 @@ const Login = () => {
     // Try database member_areas
     supabase
       .from("member_areas")
-      .select("slug, title, subtitle, lang_code")
+      .select("slug, title, subtitle, lang_code, support_email")
       .eq("slug", slug)
       .eq("active", true)
       .single()
@@ -69,6 +71,7 @@ const Login = () => {
             title: data.title,
             subtitle: data.subtitle,
             langCode: (data.lang_code || "pt") as LanguageCode,
+            supportEmail: data.support_email || "contact@everwynventures.com",
           });
         } else {
           setNotFound(true);
@@ -189,7 +192,7 @@ const Login = () => {
         </form>
 
         <p className="text-xs text-center text-muted-foreground">
-          {t.supportText} {t.supportLabel}
+          {t.supportText} <span className="font-medium text-primary">{areaInfo.supportEmail}</span>
         </p>
       </div>
     </div>

@@ -27,12 +27,13 @@ interface LessonFooterProps {
   prevLesson: { id: string } | null;
   nextLesson: { id: string } | null;
   onSelectLesson: (id: string) => void;
+  supportEmail?: string;
 }
 
 export function LessonFooter({
   lessonId, moduleEmoji, moduleTitle, lessonTitle,
   contentBlocks, translations: t, language,
-  onLessonComplete, prevLesson, nextLesson, onSelectLesson,
+  onLessonComplete, prevLesson, nextLesson, onSelectLesson, supportEmail,
 }: LessonFooterProps) {
   return (
     <div className="p-4 md:p-6">
@@ -65,7 +66,7 @@ export function LessonFooter({
 
       <div className="mt-6 pt-4 border-t border-border text-center pb-16 lg:pb-0">
         <p className="text-xs text-muted-foreground">{t.supportText}</p>
-        <p className="text-xs font-medium text-primary">{t.supportLabel}</p>
+        <p className="text-xs font-medium text-primary">{supportEmail || t.supportLabel}</p>
       </div>
     </div>
   );

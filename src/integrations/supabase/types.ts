@@ -377,6 +377,7 @@ export type Database = {
           icon: string
           button_text: string
           lang_code: string
+          support_email: string
           active: boolean
           position: number
           created_at: string
@@ -391,6 +392,7 @@ export type Database = {
           icon?: string
           button_text?: string
           lang_code?: string
+          support_email?: string
           active?: boolean
           position?: number
           created_at?: string
@@ -405,6 +407,7 @@ export type Database = {
           icon?: string
           button_text?: string
           lang_code?: string
+          support_email?: string
           active?: boolean
           position?: number
           created_at?: string
