@@ -367,6 +367,51 @@ export type Database = {
         }
         Relationships: []
       }
+      member_areas: {
+        Row: {
+          id: string
+          slug: string
+          title: string
+          subtitle: string
+          description: string
+          icon: string
+          button_text: string
+          lang_code: string
+          active: boolean
+          position: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          slug: string
+          title: string
+          subtitle: string
+          description?: string
+          icon?: string
+          button_text?: string
+          lang_code?: string
+          active?: boolean
+          position?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          slug?: string
+          title?: string
+          subtitle?: string
+          description?: string
+          icon?: string
+          button_text?: string
+          lang_code?: string
+          active?: boolean
+          position?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string

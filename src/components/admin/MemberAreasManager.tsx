@@ -1,0 +1,330 @@
+import { useState, useEffect } from "react";
+import { supabaseAdmin as supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Plus, Trash2, Save, X, Globe, Link, GripVertical, Eye, EyeOff, Pencil } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+
+const LANG_OPTIONS = [
+  { code: "pt", label: "Português" },
+  { code: "en", label: "English" },
+  { code: "es", label: "Español" },
+  { code: "de", label: "Deutsch" },
+  { code: "fr", label: "Français" },
+  { code: "it", label: "Italiano" },
+] as const;
+
+interface MemberArea {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  icon: string;
+  button_text: string;
+  lang_code: string;
+  active: boolean;
+  position: number;
+}
+
+export function MemberAreasManager() {
+  const [areas, setAreas] = useState<MemberArea[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<MemberArea>>({});
+  const [showNew, setShowNew] = useState(false);
+  const [newForm, setNewForm] = useState({ slug: "", title: "", subtitle: "", icon: "", button_text: "Acessar", lang_code: "pt" });
+  const [saving, setSaving] = useState(false);
+
+  const fetchAreas = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("member_areas")
+      .select("*")
+      .order("position");
+    setAreas((data as MemberArea[]) || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchAreas(); }, []);
+
+  const handleCreate = async () => {
+    if (!newForm.slug.trim() || !newForm.title.trim() || !newForm.subtitle.trim()) {
+      toast.error("Preencha slug, título e subtítulo");
+      return;
+    }
+    const slug = newForm.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    setSaving(true);
+    const { error } = await supabase.from("member_areas").insert({
+      slug,
+      title: newForm.title.trim(),
+      subtitle: newForm.subtitle.trim(),
+      icon: newForm.icon.trim(),
+      button_text: newForm.button_text.trim() || "Acessar",
+      lang_code: newForm.lang_code,
+      position: areas.length,
+    });
+    if (error) {
+      toast.error(error.message.includes("duplicate") ? "Este slug já existe" : `Erro ao criar área: ${error.message}`);
+    } else {
+      toast.success("Área criada!");
+      setNewForm({ slug: "", title: "", subtitle: "", icon: "", button_text: "Acessar", lang_code: "pt" });
+      setShowNew(false);
+      fetchAreas();
+    }
+    setSaving(false);
+  };
+
+  const handleEdit = (area: MemberArea) => {
+    setEditingId(area.id);
+    setEditForm({ slug: area.slug, title: area.title, subtitle: area.subtitle, icon: area.icon, button_text: area.button_text, lang_code: area.lang_code || "pt" });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editForm.slug?.trim() || !editForm.title?.trim()) return;
+    setSaving(true);
+    const slug = editForm.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    const { error } = await supabase.from("member_areas").update({
+      slug,
+      title: editForm.title?.trim(),
+      subtitle: editForm.subtitle?.trim(),
+      icon: editForm.icon?.trim(),
+      button_text: editForm.button_text?.trim() || "Acessar",
+      lang_code: editForm.lang_code || "pt",
+    }).eq("id", editingId);
+    if (error) {
+      toast.error(error.message.includes("duplicate") ? "Este slug já existe" : "Erro ao salvar");
+    } else {
+      toast.success("Área atualizada!");
+      setEditingId(null);
+      fetchAreas();
+    }
+    setSaving(false);
+  };
+
+  const handleToggleActive = async (area: MemberArea) => {
+    await supabase.from("member_areas").update({ active: !area.active }).eq("id", area.id);
+    fetchAreas();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta área?")) return;
+    await supabase.from("member_areas").delete().eq("id", id);
+    toast.success("Área excluída");
+    fetchAreas();
+  };
+
+  const getLangLabel = (code: string) => LANG_OPTIONS.find((l) => l.code === code)?.label || code;
+
+  if (loading) {
+    return <div className="text-center py-12 text-muted-foreground">Carregando áreas...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Áreas de Membros</h2>
+          <p className="text-sm text-muted-foreground">Gerencie suas áreas de membros e links de acesso</p>
+        </div>
+        <Button onClick={() => setShowNew(!showNew)} className="gap-2">
+          <Plus className="h-4 w-4" /> Nova Área
+        </Button>
+      </div>
+
+      {/* New area form */}
+      {showNew && (
+        <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+          <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Plus className="h-4 w-4" /> Criar Nova Área
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Slug (URL)*</label>
+              <Input
+                placeholder="meu-curso"
+                value={newForm.slug}
+                onChange={(e) => setNewForm({ ...newForm, slug: e.target.value })}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Link: /{newForm.slug || "..."}</p>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Idioma da Área*</label>
+              <Select value={newForm.lang_code} onValueChange={(v) => setNewForm({ ...newForm, lang_code: v })}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LANG_OPTIONS.map((l) => (
+                    <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Título*</label>
+              <Input
+                placeholder="Mestra Lian"
+                value={newForm.title}
+                onChange={(e) => setNewForm({ ...newForm, title: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Subtítulo*</label>
+              <Input
+                placeholder="Caminhando com Lian"
+                value={newForm.subtitle}
+                onChange={(e) => setNewForm({ ...newForm, subtitle: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Ícone/Emoji</label>
+              <Input
+                placeholder="🇧🇷 ou L"
+                value={newForm.icon}
+                onChange={(e) => setNewForm({ ...newForm, icon: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Texto do Botão</label>
+              <Input
+                placeholder="Acessar"
+                value={newForm.button_text}
+                onChange={(e) => setNewForm({ ...newForm, button_text: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setShowNew(false)}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={saving} className="gap-2">
+              <Save className="h-4 w-4" /> Criar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Areas list */}
+      <div className="space-y-2">
+        {areas.length === 0 ? (
+          <div className="text-center py-16">
+            <Globe className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-muted-foreground">Nenhuma área criada.</p>
+          </div>
+        ) : (
+          areas.map((area) => (
+            <div key={area.id} className={`bg-card border rounded-lg overflow-hidden ${area.active ? "border-border" : "border-border/50 opacity-60"}`}>
+              {editingId === area.id ? (
+                /* Edit mode */
+                <div className="p-4 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Slug (URL)</label>
+                      <Input
+                        value={editForm.slug || ""}
+                        onChange={(e) => setEditForm({ ...editForm, slug: e.target.value })}
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Link: /{editForm.slug || "..."}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Idioma da Área</label>
+                      <Select value={editForm.lang_code || "pt"} onValueChange={(v) => setEditForm({ ...editForm, lang_code: v })}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LANG_OPTIONS.map((l) => (
+                            <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Título</label>
+                      <Input
+                        value={editForm.title || ""}
+                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Subtítulo</label>
+                      <Input
+                        value={editForm.subtitle || ""}
+                        onChange={(e) => setEditForm({ ...editForm, subtitle: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Ícone/Emoji</label>
+                      <Input
+                        value={editForm.icon || ""}
+                        onChange={(e) => setEditForm({ ...editForm, icon: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Texto do Botão</label>
+                      <Input
+                        value={editForm.button_text || ""}
+                        onChange={(e) => setEditForm({ ...editForm, button_text: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => setEditingId(null)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" onClick={handleSaveEdit} disabled={saving} className="gap-2">
+                      <Save className="h-4 w-4" /> Salvar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* View mode */
+                <div className="flex items-center gap-4 p-4">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-lg">{area.icon || area.title[0]}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{area.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{area.subtitle}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                      {getLangLabel(area.lang_code)}
+                    </span>
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded flex items-center gap-1">
+                      <Link className="h-3 w-3" /> /{area.slug}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="sm" onClick={() => handleToggleActive(area)} className="h-8 w-8 p-0" title={area.active ? "Desativar" : "Ativar"}>
+                      {area.active ? <Eye className="h-4 w-4 text-primary" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(area)} className="h-8 w-8 p-0">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(area.id)} className="h-8 w-8 p-0 text-destructive hover:text-destructive">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}

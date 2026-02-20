@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseAdmin as supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   ChevronDown, ChevronUp, Plus, MoreVertical, Pencil, Trash2, Copy,
-  GripVertical, BookOpen, FileText, MessageCircle, Star
+  GripVertical, BookOpen, FileText, MessageCircle, Star, Headphones
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
@@ -14,10 +15,11 @@ import {
 import { toast } from "sonner";
 import { LessonEditor } from "./LessonEditor";
 
-const LANGUAGE_LABELS: Record<string, string> = {
-  pt: "🇧🇷 Português", en: "🇺🇸 English", es: "🇪🇸 Español",
-  de: "🇩🇪 Deutsch", fr: "🇫🇷 Français", it: "🇮🇹 Italiano",
-};
+interface AreaOption {
+  slug: string;
+  title: string;
+  icon: string;
+}
 
 interface ModuleData {
   id: string;
@@ -40,7 +42,9 @@ interface LessonData {
 }
 
 export function CourseContentManager() {
-  const [langFilter, setLangFilter] = useState("pt");
+  const [areas, setAreas] = useState<AreaOption[]>([]);
+  const [areasLoading, setAreasLoading] = useState(true);
+  const [langFilter, setLangFilter] = useState("");
   const [modules, setModules] = useState<ModuleData[]>([]);
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(null);
   const [moduleLessons, setModuleLessons] = useState<Record<string, LessonData[]>>({});
@@ -56,6 +60,24 @@ export function CourseContentManager() {
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [editingLessonModuleId, setEditingLessonModuleId] = useState<string | null>(null);
 
+  // Fetch member areas for the filter
+  useEffect(() => {
+    const fetchAreas = async () => {
+      const { data } = await supabase
+        .from("member_areas")
+        .select("slug, title, icon")
+        .eq("active", true)
+        .order("position");
+      const list = (data || []) as AreaOption[];
+      setAreas(list);
+      if (list.length > 0 && !langFilter) {
+        setLangFilter(list[0].slug);
+      }
+      setAreasLoading(false);
+    };
+    fetchAreas();
+  }, []);
+
   // Drag state for modules
   const dragModuleIndex = useRef<number | null>(null);
   const [dragOverModuleIndex, setDragOverModuleIndex] = useState<number | null>(null);
@@ -66,6 +88,7 @@ export function CourseContentManager() {
   const [dragOverLessonIndex, setDragOverLessonIndex] = useState<number | null>(null);
 
   const fetchModules = useCallback(async () => {
+    if (!langFilter) return;
     setLoading(true);
     const { data: mods } = await supabase
       .from("course_modules")
@@ -343,25 +366,38 @@ export function CourseContentManager() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1.5 flex-wrap">
-          {Object.entries(LANGUAGE_LABELS).map(([code, label]) => (
-            <Button key={code} variant={langFilter === code ? "default" : "outline"} size="sm" onClick={() => { setLangFilter(code); setExpandedModuleId(null); }}>
-              {label}
-            </Button>
-          ))}
-        </div>
-        <Button onClick={openCreateModule} className="gap-2">
+        <Select value={langFilter} onValueChange={(v) => { setLangFilter(v); setExpandedModuleId(null); }}>
+          <SelectTrigger className="w-[260px]">
+            <SelectValue placeholder="Selecione uma área" />
+          </SelectTrigger>
+          <SelectContent>
+            {areas.map((area) => (
+              <SelectItem key={area.slug} value={area.slug}>
+                <span className="flex items-center gap-2">
+                  <span>{area.icon || area.title[0]}</span>
+                  <span>{area.title}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button onClick={openCreateModule} className="gap-2" disabled={!langFilter}>
           <Plus className="h-4 w-4" /> Criar Módulo
         </Button>
       </div>
 
       {/* Modules list */}
-      {loading ? (
+      {areasLoading || loading ? (
         <div className="text-center py-16 text-muted-foreground">Carregando...</div>
+      ) : areas.length === 0 ? (
+        <div className="text-center py-16">
+          <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-muted-foreground">Nenhuma área de membros criada. Crie uma na aba "Áreas" primeiro.</p>
+        </div>
       ) : modules.length === 0 ? (
         <div className="text-center py-16">
           <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-muted-foreground">Nenhum módulo neste idioma.</p>
+          <p className="text-muted-foreground">Nenhum módulo nesta área.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -447,8 +483,8 @@ export function CourseContentManager() {
                         }`}
                       >
                         <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0 cursor-grab active:cursor-grabbing" />
-                        <div className={`h-8 w-8 rounded flex items-center justify-center shrink-0 ${lesson.type === "ebook" ? "bg-accent" : "bg-primary/10"}`}>
-                          {lesson.type === "ebook" ? <FileText className="h-4 w-4 text-accent-foreground" /> : <BookOpen className="h-4 w-4 text-primary" />}
+                        <div className={`h-8 w-8 rounded flex items-center justify-center shrink-0 ${lesson.type === "ebook" ? "bg-accent" : lesson.type === "audio" ? "bg-primary/20" : "bg-primary/10"}`}>
+                          {lesson.type === "ebook" ? <FileText className="h-4 w-4 text-accent-foreground" /> : lesson.type === "audio" ? <Headphones className="h-4 w-4 text-primary" /> : <BookOpen className="h-4 w-4 text-primary" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{lesson.title}</p>

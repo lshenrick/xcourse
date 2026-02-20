@@ -1,4 +1,4 @@
-import { ChevronDown, PlayCircle, CheckCircle2 } from "lucide-react";
+import { ChevronDown, PlayCircle, CheckCircle2, Headphones, FileText } from "lucide-react";
 import type { Module } from "@/data/courseData";
 import type { UITranslations } from "@/data/languages";
 import {
@@ -96,6 +96,20 @@ export function CourseSidebar({
                         >
                           {isCompleted ? (
                             <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
+                          ) : lesson.type === "audio" ? (
+                            <Headphones
+                              className={cn(
+                                "h-4 w-4 mt-0.5 shrink-0",
+                                isActive ? "text-primary" : "text-muted-foreground"
+                              )}
+                            />
+                          ) : lesson.type === "ebook" ? (
+                            <FileText
+                              className={cn(
+                                "h-4 w-4 mt-0.5 shrink-0",
+                                isActive ? "text-primary" : "text-muted-foreground"
+                              )}
+                            />
                           ) : (
                             <PlayCircle
                               className={cn(

@@ -1,33 +1,25 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { Navigate } from "react-router-dom";
+import { supabaseAdmin } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, X, MessageCircle, LogOut, Users, Shield, Globe, Trash2, UserPlus, Clock, Star, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, BookOpen, Bell, Monitor, Smartphone, Tablet, CheckCircle2, Search } from "lucide-react";
 import { CourseContentManager } from "@/components/admin/CourseContentManager";
+import { MemberAreasManager } from "@/components/admin/MemberAreasManager";
 import { toast } from "sonner";
-import { courseModules } from "@/data/courseData";
+// Emails com acesso admin (adicione mais emails aqui)
+const ADMIN_EMAILS = [
+  "contatoluishenrick@gmail.com",
+];
 
-// Build a map of lesson_id -> "Module › Lesson title"
-const LESSON_NAME_MAP: Record<string, string> = {};
-for (const mod of courseModules) {
-  for (const lesson of mod.lessons) {
-    LESSON_NAME_MAP[lesson.id] = `${mod.emoji} ${mod.title} › ${lesson.title}`;
-  }
+interface AreaLabel {
+  slug: string;
+  title: string;
+  icon: string;
 }
-const getLessonName = (id: string) => LESSON_NAME_MAP[id] || id;
-
-const LANGUAGE_LABELS: Record<string, string> = {
-  pt: "🇧🇷 Português",
-  en: "🇺🇸 English",
-  es: "🇪🇸 Español",
-  de: "🇩🇪 Deutsch",
-  fr: "🇫🇷 Français",
-  it: "🇮🇹 Italiano",
-};
 
 interface AdminComment {
   id: string;
@@ -88,7 +80,8 @@ interface AdminUser {
 }
 
 const AdminPanel = () => {
-  const { user, loading, signIn, signOut } = useAuth();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [comments, setComments] = useState<AdminComment[]>([]);
@@ -107,32 +100,63 @@ const AdminPanel = () => {
   const [userSearch, setUserSearch] = useState("");
   const [accessPage, setAccessPage] = useState(1);
   const ACCESS_PAGE_SIZE = 20;
+  const [areaLabels, setAreaLabels] = useState<AreaLabel[]>([]);
 
   // Admin login state
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
+  // Admin auth listener (independent from member auth)
+  useEffect(() => {
+    const { data: { subscription } } = supabaseAdmin.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+    supabaseAdmin.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
+    return { error: error?.message ?? null };
+  };
+
+  const signOut = async () => {
+    await supabaseAdmin.auth.signOut();
+  };
+
   useEffect(() => {
     if (!user) { setIsAdmin(null); return; }
-    supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
-      const roles = data?.map((r) => r.role) || [];
-      setIsAdmin(roles.includes("admin") || roles.includes("super_admin"));
-      setIsSuperAdmin(roles.includes("super_admin"));
-    });
+    const checkRoles = async () => {
+      // Check email-based admin list first
+      const isEmailAdmin = ADMIN_EMAILS.includes(user.email || "");
+
+      // Also check database roles
+      const { data: userRoles } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", user.id);
+      const roles = userRoles?.map((r) => r.role) || [];
+      const isDbAdmin = roles.includes("admin") || roles.includes("super_admin");
+
+      setIsAdmin(isEmailAdmin || isDbAdmin);
+      setIsSuperAdmin(isEmailAdmin || roles.includes("super_admin"));
+    };
+    checkRoles();
   }, [user]);
 
   // Fetch comments
   const fetchComments = async () => {
     if (!user) return;
-    let query = supabase.from("comments").select("*").eq("status", filter as "pending" | "approved" | "rejected").order("created_at", { ascending: false });
+    let query = supabaseAdmin.from("comments").select("*").eq("status", filter as "pending" | "approved" | "rejected").order("created_at", { ascending: false });
     if (langFilter !== "all") query = query.eq("language", langFilter);
 
     const { data } = await query;
     if (!data) return;
 
     const userIds = [...new Set(data.map((c) => c.user_id))];
-    const { data: profiles } = await supabase.from("profiles").select("id, email").in("id", userIds);
+    const { data: profiles } = await supabaseAdmin.from("profiles").select("id, email").in("id", userIds);
     const profileMap = new Map((profiles || []).map((p) => [p.id, p.email]));
 
     setComments(data.map((c) => ({
@@ -145,7 +169,7 @@ const AdminPanel = () => {
   // Fetch access logs + ratings + comments per user
   const fetchAccessLogs = async () => {
     if (!user) return;
-    let query = supabase.from("access_logs").select("*").order("accessed_at", { ascending: false }).limit(500);
+    let query = supabaseAdmin.from("access_logs").select("*").order("accessed_at", { ascending: false }).limit(500);
     if (accessLangFilter !== "all") query = query.eq("language", accessLangFilter);
     const { data } = await query;
     const logs = data || [];
@@ -156,10 +180,10 @@ const AdminPanel = () => {
 
     // Fetch profiles, ratings, comments in parallel
     const [profilesRes, ratingsRes, userCommentsRes, completionsRes] = await Promise.all([
-      supabase.from("profiles").select("id, email, display_name").in("id", userIds),
-      supabase.from("lesson_ratings").select("user_id, lesson_id, rating, language, created_at").in("user_id", userIds).order("created_at", { ascending: false }),
-      supabase.from("comments").select("user_id, lesson_id, content, language, status, created_at").in("user_id", userIds).order("created_at", { ascending: false }),
-      supabase.from("lesson_completions").select("user_id, lesson_id, language, completed_at").in("user_id", userIds).order("completed_at", { ascending: false }),
+      supabaseAdmin.from("profiles").select("id, email, display_name").in("id", userIds),
+      supabaseAdmin.from("lesson_ratings").select("user_id, lesson_id, rating, language, created_at").in("user_id", userIds).order("created_at", { ascending: false }),
+      supabaseAdmin.from("comments").select("user_id, lesson_id, content, language, status, created_at").in("user_id", userIds).order("created_at", { ascending: false }),
+      supabaseAdmin.from("lesson_completions").select("user_id, lesson_id, language, completed_at").in("user_id", userIds).order("completed_at", { ascending: false }),
     ]);
 
     const profileMap = new Map((profilesRes.data || []).map((p) => [p.id, p]));
@@ -202,11 +226,11 @@ const AdminPanel = () => {
   // Fetch admin users
   const fetchAdminUsers = async () => {
     if (!user) return;
-    const { data: roles } = await supabase.from("user_roles").select("*").in("role", ["admin", "super_admin"]);
+    const { data: roles } = await supabaseAdmin.from("user_roles").select("*").in("role", ["admin", "super_admin"]);
     if (!roles) return;
 
     const userIds = roles.map((r) => r.user_id);
-    const { data: profiles } = await supabase.from("profiles").select("id, email").in("id", userIds);
+    const { data: profiles } = await supabaseAdmin.from("profiles").select("id, email").in("id", userIds);
     const profileMap = new Map((profiles || []).map((p) => [p.id, p.email]));
 
     setAdminUsers(roles.map((r) => ({
@@ -218,7 +242,7 @@ const AdminPanel = () => {
   // Fetch pending comment counts per language
   const fetchPendingCounts = async () => {
     if (!user) return;
-    const { data } = await supabase.from("comments").select("language").eq("status", "pending");
+    const { data } = await supabaseAdmin.from("comments").select("language").eq("status", "pending");
     if (!data) return;
     const counts: Record<string, number> = {};
     for (const c of data) {
@@ -230,8 +254,8 @@ const AdminPanel = () => {
   // Fetch course modules + lessons from DB
   const fetchDbModules = async () => {
     if (!user) return;
-    const { data: modules } = await supabase.from("course_modules").select("id, title, emoji, language, position").order("position");
-    const { data: lessons } = await supabase.from("course_lessons").select("id, title, module_id, position").order("position");
+    const { data: modules } = await supabaseAdmin.from("course_modules").select("id, title, emoji, language, position").order("position");
+    const { data: lessons } = await supabaseAdmin.from("course_lessons").select("id, title, module_id, position").order("position");
     if (!modules || !lessons) return;
     setDbModules(modules.map((m) => ({
       ...m,
@@ -239,12 +263,27 @@ const AdminPanel = () => {
     })));
   };
 
+  // Fetch member areas for dynamic filters
+  const fetchAreaLabels = async () => {
+    const { data } = await supabaseAdmin.from("member_areas").select("slug, title, icon").eq("active", true).order("position");
+    setAreaLabels((data || []) as AreaLabel[]);
+  };
+
   useEffect(() => { if (isAdmin) fetchComments(); }, [isAdmin, filter, langFilter]);
   useEffect(() => { if (isAdmin) fetchAccessLogs(); }, [isAdmin, accessLangFilter]);
   useEffect(() => { if (isAdmin) fetchAdminUsers(); }, [isAdmin]);
   useEffect(() => { if (isAdmin) fetchPendingCounts(); }, [isAdmin]);
   useEffect(() => { if (isAdmin) fetchDbModules(); }, [isAdmin]);
+  useEffect(() => { if (isAdmin) fetchAreaLabels(); }, [isAdmin]);
   useEffect(() => { setAccessPage(1); }, [accessLangFilter, userSearch]);
+
+  const getLessonName = (id: string) => {
+    for (const mod of dbModules) {
+      const lesson = mod.lessons.find((l) => l.id === id);
+      if (lesson) return `${mod.emoji} ${mod.title} › ${lesson.title}`;
+    }
+    return id;
+  };
 
   const filteredUsers = groupedUsers.filter((u) => {
     if (!userSearch.trim()) return true;
@@ -255,13 +294,13 @@ const AdminPanel = () => {
   const paginatedUsers = filteredUsers.slice((accessPage - 1) * ACCESS_PAGE_SIZE, accessPage * ACCESS_PAGE_SIZE);
 
   const handleModerate = async (commentId: string, newStatus: "approved" | "rejected") => {
-    await supabase.from("comments").update({ status: newStatus }).eq("id", commentId);
+    await supabaseAdmin.from("comments").update({ status: newStatus }).eq("id", commentId);
     fetchComments();
     fetchPendingCounts();
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    await supabase.from("comments").delete().eq("id", commentId);
+    await supabaseAdmin.from("comments").delete().eq("id", commentId);
     fetchComments();
     fetchPendingCounts();
   };
@@ -271,7 +310,7 @@ const AdminPanel = () => {
     setAddingAdmin(true);
     
     // Find user by email
-    const { data: profiles } = await supabase.from("profiles").select("id").eq("email", newAdminEmail.trim());
+    const { data: profiles } = await supabaseAdmin.from("profiles").select("id").eq("email", newAdminEmail.trim());
     if (!profiles || profiles.length === 0) {
       toast.error("Usuário não encontrado. O email precisa estar cadastrado na plataforma.");
       setAddingAdmin(false);
@@ -288,7 +327,7 @@ const AdminPanel = () => {
       return;
     }
 
-    const { error } = await supabase.from("user_roles").insert({ user_id: targetUserId, role: "admin" });
+    const { error } = await supabaseAdmin.from("user_roles").insert({ user_id: targetUserId, role: "admin" });
     if (error) {
       toast.error("Erro ao adicionar administrador.");
     } else {
@@ -304,7 +343,7 @@ const AdminPanel = () => {
       toast.error("Não é possível remover o administrador principal.");
       return;
     }
-    await supabase.from("user_roles").delete().eq("id", roleId);
+    await supabaseAdmin.from("user_roles").delete().eq("id", roleId);
     toast.success("Administrador removido.");
     fetchAdminUsers();
   };
@@ -312,8 +351,12 @@ const AdminPanel = () => {
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginLoading(true);
+    // Try with provided password first, then with auto password
     const { error } = await signIn(adminEmail, adminPassword);
-    if (error) toast.error("Credenciais inválidas");
+    if (error) {
+      const { error: error2 } = await signIn(adminEmail, "auto_member_access_2024");
+      if (error2) toast.error("Credenciais inválidas");
+    }
     setLoginLoading(false);
   };
 
@@ -339,31 +382,60 @@ const AdminPanel = () => {
   }
 
   if (isAdmin === null) return <div className="min-h-screen flex items-center justify-center bg-background"><p className="text-muted-foreground">Verificando permissões...</p></div>;
-  if (!isAdmin) return <Navigate to="/" replace />;
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm space-y-8">
+          <div className="text-center space-y-2">
+            <Shield className="h-10 w-10 text-primary mx-auto" />
+            <h1 className="text-2xl font-bold text-foreground">Painel Admin</h1>
+            <p className="text-sm text-muted-foreground">Você está logado como usuário comum. Faça login com credenciais de administrador.</p>
+          </div>
+          <form onSubmit={async (e) => { e.preventDefault(); setLoginLoading(true); await signOut(); const { error } = await signIn(adminEmail, adminPassword); if (error) { const { error: error2 } = await signIn(adminEmail, "auto_member_access_2024"); if (error2) toast.error("Credenciais inválidas"); } setLoginLoading(false); }} className="space-y-4">
+            <Input type="email" placeholder="Email do admin" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required className="h-12" />
+            <Input type="password" placeholder="Senha" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} required className="h-12" />
+            <Button type="submit" className="w-full h-12" disabled={loginLoading}>Entrar como Admin</Button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  const getAreaLabel = (slug: string) => {
+    const area = areaLabels.find((a) => a.slug === slug);
+    return area ? `${area.icon || area.title[0]} ${area.title}` : slug;
+  };
 
   const LanguageFilter = ({ value, onChange, counts }: { value: string; onChange: (v: string) => void; counts?: Record<string, number> }) => {
     const totalPending = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
     return (
-      <div className="flex gap-1.5 flex-wrap">
-        <Button variant={value === "all" ? "default" : "outline"} size="sm" onClick={() => onChange("all")} className="relative">
-          Todos
-          {counts && totalPending > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
-              {totalPending}
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-[240px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">
+            <span className="flex items-center gap-2">
+              <span>Todas as áreas</span>
+              {counts && totalPending > 0 && (
+                <Badge variant="destructive" className="text-[10px] h-5 px-1.5">{totalPending}</Badge>
+              )}
             </span>
-          )}
-        </Button>
-        {Object.entries(LANGUAGE_LABELS).map(([code, label]) => (
-          <Button key={code} variant={value === code ? "default" : "outline"} size="sm" onClick={() => onChange(code)} className="relative">
-            {label}
-            {counts && (counts[code] || 0) > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
-                {counts[code]}
+          </SelectItem>
+          {areaLabels.map((area) => (
+            <SelectItem key={area.slug} value={area.slug}>
+              <span className="flex items-center gap-2">
+                <span>{area.icon || area.title[0]}</span>
+                <span>{area.title}</span>
+                {counts && (counts[area.slug] || 0) > 0 && (
+                  <Badge variant="destructive" className="text-[10px] h-5 px-1.5">{counts[area.slug]}</Badge>
+                )}
               </span>
-            )}
-          </Button>
-        ))}
-      </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     );
   };
 
@@ -386,6 +458,7 @@ const AdminPanel = () => {
             <TabsTrigger value="content" className="gap-2"><BookOpen className="h-4 w-4" /> Conteúdo</TabsTrigger>
             <TabsTrigger value="comments" className="gap-2"><MessageCircle className="h-4 w-4" /> Comentários</TabsTrigger>
             <TabsTrigger value="access" className="gap-2"><Users className="h-4 w-4" /> Acessos</TabsTrigger>
+            <TabsTrigger value="areas" className="gap-2"><Globe className="h-4 w-4" /> Áreas</TabsTrigger>
             {isSuperAdmin && (
               <TabsTrigger value="admins" className="gap-2"><Shield className="h-4 w-4" /> Administradores</TabsTrigger>
             )}
@@ -394,6 +467,11 @@ const AdminPanel = () => {
           {/* CONTENT CMS TAB */}
           <TabsContent value="content">
             <CourseContentManager />
+          </TabsContent>
+
+          {/* AREAS TAB */}
+          <TabsContent value="areas">
+            <MemberAreasManager />
           </TabsContent>
 
           {/* COMMENTS TAB */}
@@ -422,7 +500,7 @@ const AdminPanel = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="text-sm font-medium text-foreground">{comment.user_email}</span>
-                          <Badge variant="outline" className="text-xs">{LANGUAGE_LABELS[comment.language] || comment.language}</Badge>
+                          <Badge variant="outline" className="text-xs">{getAreaLabel(comment.language)}</Badge>
                           <Badge variant="secondary" className="text-xs max-w-xs truncate">{getLessonName(comment.lesson_id)}</Badge>
                           <span className="text-xs text-muted-foreground">{new Date(comment.created_at).toLocaleString()}</span>
                         </div>
@@ -522,7 +600,7 @@ const AdminPanel = () => {
                               <div key={log.id} className="flex items-center gap-3 text-xs py-1.5">
                                 <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 <span className="text-foreground">{new Date(log.accessed_at).toLocaleString()}</span>
-                                <Badge variant="outline" className="text-xs">{LANGUAGE_LABELS[log.language] || log.language}</Badge>
+                                <Badge variant="outline" className="text-xs">{getAreaLabel(log.language)}</Badge>
                                 {log.device_type && log.device_type !== "unknown" && (
                                   <Badge variant="secondary" className="text-xs gap-1">
                                     {log.device_type === "mobile" ? <Smartphone className="h-3 w-3" /> : log.device_type === "tablet" ? <Tablet className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
@@ -539,7 +617,7 @@ const AdminPanel = () => {
                                 <Star className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
                                 <span className="text-foreground font-medium">{r.rating}/5</span>
                                 <span className="text-foreground">{getLessonName(r.lesson_id)}</span>
-                                <Badge variant="outline" className="text-xs">{LANGUAGE_LABELS[r.language] || r.language}</Badge>
+                                <Badge variant="outline" className="text-xs">{getAreaLabel(r.language)}</Badge>
                                 <span className="text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</span>
                               </div>
                             )))}
@@ -550,7 +628,7 @@ const AdminPanel = () => {
                               <div key={i} className="bg-background/50 rounded p-2.5 text-xs space-y-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-foreground font-medium">{getLessonName(c.lesson_id)}</span>
-                                  <Badge variant="outline" className="text-xs">{LANGUAGE_LABELS[c.language] || c.language}</Badge>
+                                  <Badge variant="outline" className="text-xs">{getAreaLabel(c.language)}</Badge>
                                   <Badge variant={c.status === "approved" ? "default" : c.status === "rejected" ? "destructive" : "secondary"} className="text-xs">
                                     {c.status === "pending" ? "Pendente" : c.status === "approved" ? "Aprovado" : "Rejeitado"}
                                   </Badge>
@@ -578,7 +656,7 @@ const AdminPanel = () => {
                                     return (
                                       <div key={lang} className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                          <Badge variant="outline" className="text-xs">{LANGUAGE_LABELS[lang] || lang}</Badge>
+                                          <Badge variant="outline" className="text-xs">{getAreaLabel(lang)}</Badge>
                                           <span className="text-xs font-medium text-foreground">{completed.size}/{totalLessons} aulas ({pct}%)</span>
                                         </div>
                                         <div className="w-full bg-muted rounded-full h-2">

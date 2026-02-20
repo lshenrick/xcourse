@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseAdmin as supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, ChevronDown, Upload, FileText, Code, Type, GripVertical, Save } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Upload, FileText, Code, Type, GripVertical, Save, Headphones } from "lucide-react";
 import { toast } from "sonner";
 
 interface ContentBlock {
@@ -156,6 +156,7 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                 <SelectContent>
                   <SelectItem value="video">Vídeo</SelectItem>
                   <SelectItem value="ebook">E-book / Arquivo</SelectItem>
+                  <SelectItem value="audio">Áudio / Meditação</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -178,6 +179,9 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => addBlock("file")} className="gap-1 text-xs">
                   <Upload className="h-3.5 w-3.5" /> Arquivo
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => addBlock("audio")} className="gap-1 text-xs">
+                  <Headphones className="h-3.5 w-3.5" /> Áudio
                 </Button>
               </div>
             </div>
@@ -261,6 +265,44 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                         />
                       </div>
                     )}
+
+                    {block.block_type === "audio" && (
+                      <div className="space-y-2">
+                        {block.file_url ? (
+                          <div className="space-y-2">
+                            <audio controls className="w-full" src={block.file_url} />
+                            <div className="flex items-center gap-2">
+                              <Headphones className="h-4 w-4 text-primary shrink-0" />
+                              <span className="text-sm text-muted-foreground truncate flex-1">{block.file_name || "Áudio"}</span>
+                              <Button variant="ghost" size="sm" onClick={() => { updateBlock(index, "file_url", null); updateBlock(index, "file_name", null); }} className="h-7 text-xs text-destructive">
+                                Remover
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center gap-2 border-2 border-dashed border-border rounded-lg py-6 cursor-pointer hover:bg-muted/30 transition-colors">
+                            <Headphones className="h-6 w-6 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">{uploading ? "Enviando..." : "Clique para enviar áudio (MP3, WAV...)"}</span>
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="audio/*"
+                              disabled={uploading}
+                              onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) handleFileUpload(index, f);
+                              }}
+                            />
+                          </label>
+                        )}
+                        <Input
+                          value={block.content || ""}
+                          onChange={e => updateBlock(index, "content", e.target.value)}
+                          placeholder="Descrição do áudio (opcional)"
+                          className="text-sm"
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -285,6 +327,7 @@ function Badge({ block }: { block: ContentBlock }) {
     embed: { icon: <Code className="h-3 w-3" />, label: "Embed / Vídeo" },
     text: { icon: <Type className="h-3 w-3" />, label: "Texto" },
     file: { icon: <Upload className="h-3 w-3" />, label: "Arquivo" },
+    audio: { icon: <Headphones className="h-3 w-3" />, label: "Áudio" },
   };
   const c = config[block.block_type] || config.text;
   return (

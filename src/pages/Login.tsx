@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getLanguageBySlug, uiTranslations } from "@/data/languages";
+import type { LanguageCode } from "@/data/languages";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const AUTO_PASSWORD = "auto_member_access_2024!";
+const AUTO_PASSWORD = "auto_member_access_2024";
 
 const getDeviceType = (): string => {
   const ua = navigator.userAgent;
@@ -20,24 +21,79 @@ const getDeviceType = (): string => {
   return "desktop";
 };
 
+interface AreaInfo {
+  slug: string;
+  title: string;
+  subtitle: string;
+  langCode: LanguageCode;
+}
+
 const Login = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [areaInfo, setAreaInfo] = useState<AreaInfo | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const navigate = useNavigate();
   const { langSlug } = useParams<{ langSlug: string }>();
   const { signIn, signUp, user } = useAuth();
 
-  const lang = getLanguageBySlug(langSlug || "");
-  if (!lang) return <Navigate to="/" replace />;
-  if (user) return <Navigate to={`/${lang.slug}/curso`} replace />;
+  useEffect(() => {
+    const slug = langSlug || "";
 
-  const t = uiTranslations[lang.code];
+    // Try known language first
+    const lang = getLanguageBySlug(slug);
+    if (lang) {
+      setAreaInfo({
+        slug: lang.slug,
+        title: `${lang.mestraTitle} ${lang.mestraName}`,
+        subtitle: lang.courseName,
+        langCode: lang.code,
+      });
+      setChecking(false);
+      return;
+    }
+
+    // Try database member_areas
+    supabase
+      .from("member_areas")
+      .select("slug, title, subtitle, lang_code")
+      .eq("slug", slug)
+      .eq("active", true)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setAreaInfo({
+            slug: data.slug,
+            title: data.title,
+            subtitle: data.subtitle,
+            langCode: (data.lang_code || "pt") as LanguageCode,
+          });
+        } else {
+          setNotFound(true);
+        }
+        setChecking(false);
+      });
+  }, [langSlug]);
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">...</p>
+      </div>
+    );
+  }
+
+  if (notFound || !areaInfo) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={`/${areaInfo.slug}/curso`} replace />;
+
+  const t = uiTranslations[areaInfo.langCode];
 
   const logAccess = async (userId: string, userEmail: string) => {
     await supabase.from("access_logs").insert({
       user_id: userId,
-      language: lang.code,
+      language: areaInfo.slug,
       email: userEmail,
       device_type: getDeviceType(),
     });
@@ -50,7 +106,6 @@ const Login = () => {
 
     const trimmedEmail = email.trim();
 
-    // Try sign in first, if fails, sign up automatically
     const { error: signInError } = await signIn(trimmedEmail, AUTO_PASSWORD);
     if (signInError) {
       const { error: signUpError } = await signUp(trimmedEmail, AUTO_PASSWORD);
@@ -67,14 +122,13 @@ const Login = () => {
       }
     }
 
-    // Log access and save display name
     const { data: { user: loggedUser } } = await supabase.auth.getUser();
     if (loggedUser) {
       await logAccess(loggedUser.id, trimmedEmail);
       await supabase.from("profiles").update({ display_name: name.trim() }).eq("id", loggedUser.id);
     }
 
-    navigate(`/${lang.slug}/curso`);
+    navigate(`/${areaInfo.slug}/curso`);
     setLoading(false);
   };
 
@@ -82,9 +136,12 @@ const Login = () => {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            {lang.courseName}
+          <h1 className="text-2xl font-serif font-bold text-foreground tracking-tight">
+            {areaInfo.title}
           </h1>
+          <p className="text-base text-accent">
+            {areaInfo.subtitle}
+          </p>
           <p className="text-sm text-muted-foreground">
             {t.memberArea}
           </p>
