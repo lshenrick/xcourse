@@ -5,9 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, ChevronDown, Upload, FileText, Code, Type, GripVertical, Save, Headphones } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Upload, FileText, Code, Type, GripVertical, Save, Headphones, Video, Link, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { parseVideoUrl, uploadToR2 } from "@/utils/videoUrl";
 
 interface ContentBlock {
   id?: string;
@@ -32,6 +32,7 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
   const [materialsOpen, setMaterialsOpen] = useState(true);
 
   useEffect(() => {
@@ -55,21 +56,17 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
 
   const save = async () => {
     setSaving(true);
-    // Update lesson metadata
     await supabase.from("course_lessons").update({
       title, type, duration: duration || null,
     }).eq("id", lessonId);
 
-    // Sync blocks: delete removed, upsert existing
     const existingIds = blocks.filter(b => b.id).map(b => b.id!);
-    // Delete blocks not in current list
     if (existingIds.length > 0) {
       await supabase.from("lesson_content_blocks").delete().eq("lesson_id", lessonId).not("id", "in", `(${existingIds.join(",")})`);
     } else {
       await supabase.from("lesson_content_blocks").delete().eq("lesson_id", lessonId);
     }
 
-    // Upsert each block
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i];
       const data = { lesson_id: lessonId, block_type: b.block_type, content: b.content, file_url: b.file_url, file_name: b.file_name, position: i };
@@ -104,21 +101,22 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
     setBlocks(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleFileUpload = async (index: number, file: File) => {
+  // Upload to Cloudflare R2
+  const handleR2Upload = async (index: number, file: File, folder: string) => {
     setUploading(true);
-    const ext = file.name.split(".").pop();
-    const path = `lessons/${lessonId}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("course-files").upload(path, file);
-    if (error) {
-      toast.error("Erro ao enviar arquivo");
+    setUploadProgress(`Enviando ${file.name}...`);
+    try {
+      const result = await uploadToR2(file, `${folder}/${lessonId}`);
+      updateBlock(index, "file_url", result.url);
+      updateBlock(index, "file_name", file.name);
+      toast.success("Arquivo enviado!");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro ao enviar";
+      toast.error(message);
+    } finally {
       setUploading(false);
-      return;
+      setUploadProgress("");
     }
-    const { data: urlData } = supabase.storage.from("course-files").getPublicUrl(path);
-    updateBlock(index, "file_url", urlData.publicUrl);
-    updateBlock(index, "file_name", file.name);
-    setUploading(false);
-    toast.success("Arquivo enviado!");
   };
 
   if (loading) {
@@ -170,7 +168,10 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-medium text-foreground">Conteúdo</label>
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
+                <Button variant="outline" size="sm" onClick={() => addBlock("video")} className="gap-1 text-xs">
+                  <Video className="h-3.5 w-3.5" /> Vídeo
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => addBlock("embed")} className="gap-1 text-xs">
                   <Code className="h-3.5 w-3.5" /> Embed
                 </Button>
@@ -189,7 +190,10 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
             {blocks.length === 0 ? (
               <div className="border-2 border-dashed border-border rounded-lg py-10 text-center">
                 <p className="text-sm text-muted-foreground mb-3">Nenhum conteúdo adicionado.</p>
-                <div className="flex gap-2 justify-center">
+                <div className="flex gap-2 justify-center flex-wrap">
+                  <Button variant="outline" size="sm" onClick={() => addBlock("video")} className="gap-1">
+                    <Video className="h-4 w-4" /> Adicionar Vídeo
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => addBlock("embed")} className="gap-1">
                     <Code className="h-4 w-4" /> Adicionar Embed
                   </Button>
@@ -212,6 +216,111 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                       </Button>
                     </div>
 
+                    {/* VIDEO BLOCK - Upload + Link */}
+                    {block.block_type === "video" && (
+                      <div className="space-y-3">
+                        {block.file_url ? (
+                          <div className="space-y-2">
+                            <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+                              <video
+                                src={block.file_url}
+                                controls
+                                className="w-full h-full object-contain"
+                                preload="metadata"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2 bg-background rounded p-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                              <span className="text-sm text-muted-foreground truncate flex-1">{block.file_name || "Vídeo enviado"}</span>
+                              <Button variant="ghost" size="sm" onClick={() => { updateBlock(index, "file_url", null); updateBlock(index, "file_name", null); }} className="h-7 text-xs text-destructive">
+                                Remover
+                              </Button>
+                            </div>
+                          </div>
+                        ) : block.content ? (
+                          <div className="space-y-2">
+                            {/* Preview do link externo */}
+                            <VideoLinkPreview url={block.content} />
+                            <div className="flex items-center gap-2 bg-background rounded p-2">
+                              <Link className="h-4 w-4 text-blue-500 shrink-0" />
+                              <span className="text-sm text-muted-foreground truncate flex-1">{block.content}</span>
+                              <Button variant="ghost" size="sm" onClick={() => updateBlock(index, "content", "")} className="h-7 text-xs text-destructive">
+                                Remover
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {/* Upload area */}
+                            <label className="flex flex-col items-center gap-3 border-2 border-dashed border-border rounded-lg py-8 cursor-pointer hover:bg-muted/30 hover:border-primary/30 transition-all">
+                              {uploading ? (
+                                <>
+                                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                                  <span className="text-sm text-muted-foreground">{uploadProgress}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                                    <Upload className="h-7 w-7 text-primary" />
+                                  </div>
+                                  <div className="text-center">
+                                    <span className="text-sm font-medium text-foreground">Clique para enviar vídeo</span>
+                                    <p className="text-xs text-muted-foreground mt-1">MP4, WebM, MOV — até 500MB</p>
+                                  </div>
+                                </>
+                              )}
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept="video/*"
+                                disabled={uploading}
+                                onChange={e => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleR2Upload(index, f, "videos");
+                                }}
+                              />
+                            </label>
+
+                            {/* OR divider */}
+                            <div className="flex items-center gap-3">
+                              <div className="h-px flex-1 bg-border" />
+                              <span className="text-xs text-muted-foreground font-medium">OU</span>
+                              <div className="h-px flex-1 bg-border" />
+                            </div>
+
+                            {/* Link input */}
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Cole o link do Google Drive, Dropbox ou URL do vídeo"
+                                className="text-sm"
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") {
+                                    const val = (e.target as HTMLInputElement).value.trim();
+                                    if (val) updateBlock(index, "content", val);
+                                  }
+                                }}
+                                onBlur={e => {
+                                  const val = e.target.value.trim();
+                                  if (val) updateBlock(index, "content", val);
+                                }}
+                              />
+                              <Button variant="outline" size="sm" className="shrink-0 gap-1" onClick={() => {
+                                const input = document.querySelector(`[data-video-link-${index}]`) as HTMLInputElement;
+                                if (input?.value.trim()) updateBlock(index, "content", input.value.trim());
+                              }}>
+                                <Link className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Google Drive: Compartilhe o vídeo com "Qualquer pessoa com o link" antes de colar aqui
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* EMBED BLOCK (legacy) */}
                     {block.block_type === "embed" && (
                       <Textarea
                         value={block.content || ""}
@@ -221,6 +330,7 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                       />
                     )}
 
+                    {/* TEXT BLOCK */}
                     {block.block_type === "text" && (
                       <Textarea
                         value={block.content || ""}
@@ -230,6 +340,7 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                       />
                     )}
 
+                    {/* FILE BLOCK - now with R2 upload */}
                     {block.block_type === "file" && (
                       <div className="space-y-2">
                         {block.file_url ? (
@@ -244,15 +355,24 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                           </div>
                         ) : (
                           <label className="flex flex-col items-center gap-2 border-2 border-dashed border-border rounded-lg py-6 cursor-pointer hover:bg-muted/30 transition-colors">
-                            <Upload className="h-6 w-6 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">{uploading ? "Enviando..." : "Clique para enviar arquivo"}</span>
+                            {uploading ? (
+                              <>
+                                <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                                <span className="text-sm text-muted-foreground">{uploadProgress}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-sm text-muted-foreground">Clique para enviar arquivo (PDF, DOC, etc.)</span>
+                              </>
+                            )}
                             <input
                               type="file"
                               className="hidden"
                               disabled={uploading}
                               onChange={e => {
                                 const f = e.target.files?.[0];
-                                if (f) handleFileUpload(index, f);
+                                if (f) handleR2Upload(index, f, "files");
                               }}
                             />
                           </label>
@@ -266,6 +386,7 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                       </div>
                     )}
 
+                    {/* AUDIO BLOCK - now with R2 upload */}
                     {block.block_type === "audio" && (
                       <div className="space-y-2">
                         {block.file_url ? (
@@ -281,8 +402,17 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                           </div>
                         ) : (
                           <label className="flex flex-col items-center gap-2 border-2 border-dashed border-border rounded-lg py-6 cursor-pointer hover:bg-muted/30 transition-colors">
-                            <Headphones className="h-6 w-6 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">{uploading ? "Enviando..." : "Clique para enviar áudio (MP3, WAV...)"}</span>
+                            {uploading ? (
+                              <>
+                                <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                                <span className="text-sm text-muted-foreground">{uploadProgress}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Headphones className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-sm text-muted-foreground">Clique para enviar áudio (MP3, WAV...)</span>
+                              </>
+                            )}
                             <input
                               type="file"
                               className="hidden"
@@ -290,7 +420,7 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
                               disabled={uploading}
                               onChange={e => {
                                 const f = e.target.files?.[0];
-                                if (f) handleFileUpload(index, f);
+                                if (f) handleR2Upload(index, f, "audio");
                               }}
                             />
                           </label>
@@ -324,7 +454,8 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
 
 function Badge({ block }: { block: ContentBlock }) {
   const config: Record<string, { icon: React.ReactNode; label: string }> = {
-    embed: { icon: <Code className="h-3 w-3" />, label: "Embed / Vídeo" },
+    video: { icon: <Video className="h-3 w-3" />, label: "Vídeo" },
+    embed: { icon: <Code className="h-3 w-3" />, label: "Embed" },
     text: { icon: <Type className="h-3 w-3" />, label: "Texto" },
     file: { icon: <Upload className="h-3 w-3" />, label: "Arquivo" },
     audio: { icon: <Headphones className="h-3 w-3" />, label: "Áudio" },
@@ -335,4 +466,52 @@ function Badge({ block }: { block: ContentBlock }) {
       {c.icon} {c.label}
     </span>
   );
+}
+
+function VideoLinkPreview({ url }: { url: string }) {
+  const parsed = parseVideoUrl(url);
+
+  if (parsed.type === "gdrive") {
+    return (
+      <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+        <iframe
+          src={parsed.src}
+          className="w-full h-full"
+          allow="autoplay; encrypted-media"
+          allowFullScreen
+          style={{ border: 0 }}
+        />
+      </div>
+    );
+  }
+
+  if (parsed.type === "direct" || parsed.type === "dropbox") {
+    return (
+      <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+        <video
+          src={parsed.src}
+          controls
+          className="w-full h-full object-contain"
+          preload="metadata"
+        />
+      </div>
+    );
+  }
+
+  // Embed fallback
+  if (parsed.src) {
+    return (
+      <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+        <iframe
+          src={parsed.src}
+          className="w-full h-full"
+          allow="autoplay; encrypted-media"
+          allowFullScreen
+          style={{ border: 0 }}
+        />
+      </div>
+    );
+  }
+
+  return null;
 }
