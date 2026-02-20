@@ -112,7 +112,8 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
       toast.success("Arquivo enviado!");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro ao enviar";
-      toast.error(message);
+      console.error("Upload error:", err);
+      toast.error(message, { duration: 8000 });
     } finally {
       setUploading(false);
       setUploadProgress("");

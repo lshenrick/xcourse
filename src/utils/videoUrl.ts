@@ -58,20 +58,41 @@ export async function uploadToR2(
   file: File,
   folder: string = "uploads"
 ): Promise<{ url: string; key: string; fileName: string }> {
-  const response = await fetch("/api/upload", {
-    method: "POST",
-    headers: {
-      "Content-Type": file.type || "application/octet-stream",
-      "x-file-name": file.name,
-      "x-file-type": file.type || "application/octet-stream",
-      "x-folder": folder,
-    },
-    body: file,
-  });
+  let response: Response;
+
+  try {
+    response = await fetch("/api/upload", {
+      method: "POST",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+        "x-file-name": encodeURIComponent(file.name),
+        "x-file-type": file.type || "application/octet-stream",
+        "x-folder": folder,
+      },
+      body: file,
+    });
+  } catch (fetchErr) {
+    console.error("Upload fetch error:", fetchErr);
+    throw new Error("Erro de conexão ao enviar arquivo. Verifique sua internet.");
+  }
 
   if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: "Upload failed" }));
-    throw new Error(err.error || err.message || "Upload failed");
+    let errMsg = `Upload falhou (HTTP ${response.status})`;
+    try {
+      const errBody = await response.text();
+      console.error("Upload error response:", response.status, errBody);
+      const errJson = JSON.parse(errBody);
+      errMsg = errJson.error || errJson.message || errMsg;
+      if (errJson.missing) {
+        errMsg += ` — Variáveis faltando: ${errJson.missing.join(", ")}`;
+      }
+      if (errJson.details) {
+        errMsg += ` — ${errJson.details.substring(0, 200)}`;
+      }
+    } catch {
+      // couldn't parse JSON, use status text
+    }
+    throw new Error(errMsg);
   }
 
   return response.json();
