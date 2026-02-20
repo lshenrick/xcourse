@@ -54,20 +54,26 @@ function buildEmailHtml(
   }
 
   // Wrap in styled HTML
+  const courseName = vars.course_name || "";
   return `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-    <div style="background:#18181b;padding:32px 24px;text-align:center;">
-      <h1 style="color:#fff;font-size:22px;margin:0;">🎉 Acesso Liberado!</h1>
+<body style="margin:0;padding:0;background:linear-gradient(180deg,#f5f3ff 0%,#f4f4f5 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:580px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#18181b 0%,#27272a 100%);padding:40px 32px;text-align:center;">
+      <div style="width:64px;height:64px;background:rgba(124,58,237,0.15);border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
+        <span style="font-size:32px;line-height:64px;">🎉</span>
+      </div>
+      <h1 style="color:#ffffff;font-size:24px;margin:0 0 8px;font-weight:700;">Acesso Liberado!</h1>
+      <p style="color:#a1a1aa;font-size:14px;margin:0;">${courseName}</p>
     </div>
-    <div style="padding:32px 24px;color:#27272a;font-size:15px;line-height:1.7;">
+    <div style="padding:36px 32px;color:#27272a;font-size:15px;line-height:1.7;">
       ${html}
     </div>
-    <div style="padding:16px 24px;border-top:1px solid #e4e4e7;text-align:center;">
-      <p style="color:#a1a1aa;font-size:12px;margin:0;">Enviado automaticamente pelo sistema</p>
+    <div style="padding:20px 32px;background:#fafafa;border-top:1px solid #e4e4e7;text-align:center;">
+      <p style="color:#a1a1aa;font-size:12px;margin:0;">Este email foi enviado automaticamente. Não é necessário responder.</p>
+      <p style="color:#d4d4d8;font-size:11px;margin:8px 0 0;">Powered by xmembers.app</p>
     </div>
   </div>
 </body>
