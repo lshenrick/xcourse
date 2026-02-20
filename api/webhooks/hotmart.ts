@@ -15,6 +15,7 @@ interface VercelResponse extends ServerResponse {
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 
 function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey);
@@ -211,8 +212,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
-        // Send welcome email if enabled
-        if (settings?.email_enabled && settings?.resend_api_key) {
+        // Send welcome email if enabled (uses global RESEND_API_KEY)
+        if (settings?.email_enabled && RESEND_API_KEY) {
           try {
             // Get area info for email
             const { data: areaInfo } = await supabase
@@ -240,7 +241,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             );
 
             await sendEmail(
-              settings.resend_api_key,
+              RESEND_API_KEY,
               settings.email_from || "noreply@xmembers.app",
               buyerEmail,
               subject,

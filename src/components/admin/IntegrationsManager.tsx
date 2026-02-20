@@ -60,7 +60,12 @@ interface AuthorizedBuyer {
   created_at: string;
 }
 
-export function IntegrationsManager() {
+interface IntegrationsManagerProps {
+  adminUserId: string;
+  isSuperAdmin: boolean;
+}
+
+export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsManagerProps) {
   const [areas, setAreas] = useState<AreaOption[]>([]);
   const [selectedArea, setSelectedArea] = useState<string>("");
   const [settings, setSettings] = useState<IntegrationSetting | null>(null);
@@ -73,8 +78,7 @@ export function IntegrationsManager() {
   // Form states
   const [hottok, setHottok] = useState("");
   const [showHottok, setShowHottok] = useState(false);
-  const [resendApiKey, setResendApiKey] = useState("");
-  const [showResendKey, setShowResendKey] = useState(false);
+  // Resend API Key agora é global (env var RESEND_API_KEY)
   const [emailFrom, setEmailFrom] = useState("noreply@xmembers.app");
   const [emailSubject, setEmailSubject] = useState("Seu acesso ao curso está liberado!");
   const [emailBody, setEmailBody] = useState('Olá {name},<br><br>Seu acesso ao curso <strong>{course_name}</strong> está liberado!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Acessar Curso</a><br><br>Use o email <strong>{email}</strong> para fazer login.<br><br>Bons estudos!');
@@ -102,7 +106,9 @@ export function IntegrationsManager() {
   // Fetch areas
   useEffect(() => {
     const fetchAreas = async () => {
-      const { data } = await supabase.from("member_areas").select("slug, title, icon").eq("active", true).order("position");
+      let query = supabase.from("member_areas").select("slug, title, icon").eq("active", true).order("position");
+      if (!isSuperAdmin) query = query.eq("owner_id", adminUserId);
+      const { data } = await query;
       const areaList = (data || []) as AreaOption[];
       setAreas(areaList);
       if (areaList.length > 0 && !selectedArea) {
@@ -132,7 +138,6 @@ export function IntegrationsManager() {
       const s = data as IntegrationSetting;
       setSettings(s);
       setHottok(s.hottok || "");
-      setResendApiKey(s.resend_api_key || "");
       setEmailFrom(s.email_from || "noreply@xmembers.app");
       setEmailSubject(s.email_subject_template || "");
       setEmailBody(s.email_body_template || "");
@@ -141,7 +146,6 @@ export function IntegrationsManager() {
     } else {
       setSettings(null);
       setHottok("");
-      setResendApiKey("");
       setEmailFrom("noreply@xmembers.app");
       setEmailSubject("Seu acesso ao curso está liberado!");
       setEmailBody('Olá {name},<br><br>Seu acesso ao curso <strong>{course_name}</strong> está liberado!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Acessar Curso</a><br><br>Use o email <strong>{email}</strong> para fazer login.<br><br>Bons estudos!');
@@ -187,7 +191,6 @@ export function IntegrationsManager() {
     const payload = {
       area_slug: selectedArea,
       hottok: hottok.trim() || null,
-      resend_api_key: resendApiKey.trim() || null,
       email_from: emailFrom.trim() || "noreply@xmembers.app",
       email_subject_template: emailSubject.trim(),
       email_body_template: emailBody,
@@ -575,22 +578,17 @@ export function IntegrationsManager() {
         <TabsContent value="email" className="space-y-4">
           <div className="bg-card border border-border rounded-lg p-5 space-y-4">
             <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-              <Key className="h-4 w-4" /> API Key do Resend
+              <Mail className="h-4 w-4" /> Configuração de Email
             </h3>
-            <div className="flex items-center gap-2">
-              <Input
-                type={showResendKey ? "text" : "password"}
-                placeholder="re_xxxxxxxxxx"
-                value={resendApiKey}
-                onChange={(e) => setResendApiKey(e.target.value)}
-              />
-              <Button variant="ghost" size="icon" onClick={() => setShowResendKey(!showResendKey)}>
-                {showResendKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
+            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm text-green-700 dark:text-green-400 font-medium">Email configurado automaticamente</p>
+                <p className="text-xs text-green-600/80 dark:text-green-500/80 mt-0.5">
+                  Todos os emails são enviados de <strong>noreply@xmembers.app</strong> via Resend. Nenhuma configuração adicional necessária.
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Crie sua conta em <strong>resend.com</strong>, verifique seu domínio e copie a API Key aqui.
-            </p>
 
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer">

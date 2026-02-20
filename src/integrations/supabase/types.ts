@@ -382,6 +382,7 @@ export type Database = {
           lang_code: string
           support_email: string
           custom_labels: Record<string, string> | null
+          owner_id: string | null
           active: boolean
           position: number
           created_at: string
@@ -398,6 +399,7 @@ export type Database = {
           lang_code?: string
           support_email?: string
           custom_labels?: Record<string, string> | null
+          owner_id?: string | null
           active?: boolean
           position?: number
           created_at?: string
@@ -414,6 +416,7 @@ export type Database = {
           lang_code?: string
           support_email?: string
           custom_labels?: Record<string, string> | null
+          owner_id?: string | null
           active?: boolean
           position?: number
           created_at?: string

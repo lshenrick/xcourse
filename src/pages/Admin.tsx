@@ -147,11 +147,14 @@ const AdminPanel = () => {
     checkRoles();
   }, [user]);
 
-  // Fetch comments
+  // Fetch comments (filter by owned areas for non-super admins)
   const fetchComments = async () => {
     if (!user) return;
     let query = supabaseAdmin.from("comments").select("*").eq("status", filter as "pending" | "approved" | "rejected").order("created_at", { ascending: false });
     if (langFilter !== "all") query = query.eq("language", langFilter);
+    else if (!isSuperAdmin && areaLabels.length > 0) {
+      query = query.in("language", areaLabels.map((a) => a.slug));
+    }
 
     const { data } = await query;
     if (!data) return;
@@ -167,11 +170,14 @@ const AdminPanel = () => {
     })));
   };
 
-  // Fetch access logs + ratings + comments per user
+  // Fetch access logs + ratings + comments per user (filter by owned areas)
   const fetchAccessLogs = async () => {
     if (!user) return;
     let query = supabaseAdmin.from("access_logs").select("*").order("accessed_at", { ascending: false }).limit(500);
     if (accessLangFilter !== "all") query = query.eq("language", accessLangFilter);
+    else if (!isSuperAdmin && areaLabels.length > 0) {
+      query = query.in("language", areaLabels.map((a) => a.slug));
+    }
     const { data } = await query;
     const logs = data || [];
     setAccessLogs(logs);
@@ -240,10 +246,14 @@ const AdminPanel = () => {
     })));
   };
 
-  // Fetch pending comment counts per language
+  // Fetch pending comment counts per language (filter by owned areas)
   const fetchPendingCounts = async () => {
     if (!user) return;
-    const { data } = await supabaseAdmin.from("comments").select("language").eq("status", "pending");
+    let query = supabaseAdmin.from("comments").select("language").eq("status", "pending");
+    if (!isSuperAdmin && areaLabels.length > 0) {
+      query = query.in("language", areaLabels.map((a) => a.slug));
+    }
+    const { data } = await query;
     if (!data) return;
     const counts: Record<string, number> = {};
     for (const c of data) {
@@ -252,10 +262,14 @@ const AdminPanel = () => {
     setPendingCounts(counts);
   };
 
-  // Fetch course modules + lessons from DB
+  // Fetch course modules + lessons from DB (filter by owned areas)
   const fetchDbModules = async () => {
     if (!user) return;
-    const { data: modules } = await supabaseAdmin.from("course_modules").select("id, title, emoji, language, position").order("position");
+    let modQuery = supabaseAdmin.from("course_modules").select("id, title, emoji, language, position").order("position");
+    if (!isSuperAdmin && areaLabels.length > 0) {
+      modQuery = modQuery.in("language", areaLabels.map((a) => a.slug));
+    }
+    const { data: modules } = await modQuery;
     const { data: lessons } = await supabaseAdmin.from("course_lessons").select("id, title, module_id, position").order("position");
     if (!modules || !lessons) return;
     setDbModules(modules.map((m) => ({
@@ -264,18 +278,22 @@ const AdminPanel = () => {
     })));
   };
 
-  // Fetch member areas for dynamic filters
+  // Fetch member areas for dynamic filters (filtered by owner for non-super admins)
   const fetchAreaLabels = async () => {
-    const { data } = await supabaseAdmin.from("member_areas").select("slug, title, icon").eq("active", true).order("position");
+    let query = supabaseAdmin.from("member_areas").select("slug, title, icon").eq("active", true).order("position");
+    if (!isSuperAdmin && user) query = query.eq("owner_id", user.id);
+    const { data } = await query;
     setAreaLabels((data || []) as AreaLabel[]);
   };
 
-  useEffect(() => { if (isAdmin) fetchComments(); }, [isAdmin, filter, langFilter]);
-  useEffect(() => { if (isAdmin) fetchAccessLogs(); }, [isAdmin, accessLangFilter]);
-  useEffect(() => { if (isAdmin) fetchAdminUsers(); }, [isAdmin]);
-  useEffect(() => { if (isAdmin) fetchPendingCounts(); }, [isAdmin]);
-  useEffect(() => { if (isAdmin) fetchDbModules(); }, [isAdmin]);
+  // Load area labels first (needed for owner-based filtering in other fetches)
   useEffect(() => { if (isAdmin) fetchAreaLabels(); }, [isAdmin]);
+  // Load data that depends on areaLabels for non-super admin filtering
+  useEffect(() => { if (isAdmin && areaLabels.length > 0) fetchComments(); }, [isAdmin, areaLabels, filter, langFilter]);
+  useEffect(() => { if (isAdmin && areaLabels.length > 0) fetchAccessLogs(); }, [isAdmin, areaLabels, accessLangFilter]);
+  useEffect(() => { if (isAdmin) fetchAdminUsers(); }, [isAdmin]);
+  useEffect(() => { if (isAdmin && areaLabels.length > 0) fetchPendingCounts(); }, [isAdmin, areaLabels]);
+  useEffect(() => { if (isAdmin && areaLabels.length > 0) fetchDbModules(); }, [isAdmin, areaLabels]);
   useEffect(() => { setAccessPage(1); }, [accessLangFilter, userSearch]);
 
   const getLessonName = (id: string) => {
@@ -468,17 +486,17 @@ const AdminPanel = () => {
 
           {/* CONTENT CMS TAB */}
           <TabsContent value="content">
-            <CourseContentManager />
+            <CourseContentManager adminUserId={user.id} isSuperAdmin={isSuperAdmin} />
           </TabsContent>
 
           {/* AREAS TAB */}
           <TabsContent value="areas">
-            <MemberAreasManager />
+            <MemberAreasManager adminUserId={user.id} isSuperAdmin={isSuperAdmin} />
           </TabsContent>
 
           {/* INTEGRATIONS TAB */}
           <TabsContent value="integrations">
-            <IntegrationsManager />
+            <IntegrationsManager adminUserId={user.id} isSuperAdmin={isSuperAdmin} />
           </TabsContent>
 
           {/* COMMENTS TAB */}

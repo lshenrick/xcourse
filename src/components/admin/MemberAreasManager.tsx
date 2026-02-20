@@ -36,9 +36,15 @@ interface MemberArea {
   custom_labels: Record<string, string> | null;
   active: boolean;
   position: number;
+  owner_id: string | null;
 }
 
-export function MemberAreasManager() {
+interface MemberAreasManagerProps {
+  adminUserId: string;
+  isSuperAdmin: boolean;
+}
+
+export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasManagerProps) {
   const [areas, setAreas] = useState<MemberArea[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -51,10 +57,12 @@ export function MemberAreasManager() {
 
   const fetchAreas = async () => {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from("member_areas")
       .select("*")
       .order("position");
+    if (!isSuperAdmin) query = query.eq("owner_id", adminUserId);
+    const { data } = await query;
     setAreas((data as MemberArea[]) || []);
     setLoading(false);
   };
@@ -77,6 +85,7 @@ export function MemberAreasManager() {
       lang_code: newForm.lang_code,
       support_email: newForm.support_email.trim() || undefined,
       position: areas.length,
+      owner_id: adminUserId,
     });
     if (error) {
       toast.error(error.message.includes("duplicate") ? "Este slug já existe" : `Erro ao criar área: ${error.message}`);

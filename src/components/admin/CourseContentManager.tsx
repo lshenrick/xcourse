@@ -41,7 +41,12 @@ interface LessonData {
   avg_rating: number;
 }
 
-export function CourseContentManager() {
+interface CourseContentManagerProps {
+  adminUserId: string;
+  isSuperAdmin: boolean;
+}
+
+export function CourseContentManager({ adminUserId, isSuperAdmin }: CourseContentManagerProps) {
   const [areas, setAreas] = useState<AreaOption[]>([]);
   const [areasLoading, setAreasLoading] = useState(true);
   const [langFilter, setLangFilter] = useState("");
@@ -63,11 +68,13 @@ export function CourseContentManager() {
   // Fetch member areas for the filter
   useEffect(() => {
     const fetchAreas = async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("member_areas")
         .select("slug, title, icon")
         .eq("active", true)
         .order("position");
+      if (!isSuperAdmin) query = query.eq("owner_id", adminUserId);
+      const { data } = await query;
       const list = (data || []) as AreaOption[];
       setAreas(list);
       if (list.length > 0 && !langFilter) {
