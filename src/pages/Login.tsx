@@ -102,12 +102,36 @@ const Login = () => {
     });
   };
 
+  const notAuthorizedMessages: Record<string, string> = {
+    pt: "Este e-mail n\u00e3o est\u00e1 autorizado para este curso. Verifique se usou o e-mail correto da compra.",
+    en: "This email is not authorized for this course. Please check you used the correct purchase email.",
+    es: "Este correo no est\u00e1 autorizado para este curso. Verifica que usaste el correo correcto de la compra.",
+    de: "Diese E-Mail ist nicht f\u00fcr diesen Kurs autorisiert. Bitte \u00fcberpr\u00fcfen Sie die Kauf-E-Mail.",
+    fr: "Cet e-mail n\u2019est pas autoris\u00e9 pour ce cours. V\u00e9rifiez que vous avez utilis\u00e9 l\u2019e-mail d\u2019achat.",
+    it: "Questa email non \u00e8 autorizzata per questo corso. Verifica di aver usato l'email corretta dell'acquisto.",
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !name.trim()) return;
     setLoading(true);
 
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    // Check if buyer is authorized for this area
+    const { data: buyer } = await supabase
+      .from("authorized_buyers")
+      .select("id, status")
+      .eq("email", trimmedEmail)
+      .eq("area_slug", areaInfo.slug)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (!buyer) {
+      toast.error(notAuthorizedMessages[areaInfo.langCode] || notAuthorizedMessages.pt);
+      setLoading(false);
+      return;
+    }
 
     const { error: signInError } = await signIn(trimmedEmail, AUTO_PASSWORD);
     if (signInError) {

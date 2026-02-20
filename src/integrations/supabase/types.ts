@@ -433,6 +433,150 @@ export type Database = {
         }
         Relationships: []
       }
+      authorized_buyers: {
+        Row: {
+          id: string
+          email: string
+          name: string | null
+          area_slug: string
+          hotmart_transaction: string | null
+          hotmart_product_id: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          email: string
+          name?: string | null
+          area_slug: string
+          hotmart_transaction?: string | null
+          hotmart_product_id?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          name?: string | null
+          area_slug?: string
+          hotmart_transaction?: string | null
+          hotmart_product_id?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      integration_settings: {
+        Row: {
+          id: string
+          area_slug: string
+          hottok: string | null
+          resend_api_key: string | null
+          email_from: string
+          email_subject_template: string
+          email_body_template: string
+          webhook_enabled: boolean
+          email_enabled: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          area_slug: string
+          hottok?: string | null
+          resend_api_key?: string | null
+          email_from?: string
+          email_subject_template?: string
+          email_body_template?: string
+          webhook_enabled?: boolean
+          email_enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          area_slug?: string
+          hottok?: string | null
+          resend_api_key?: string | null
+          email_from?: string
+          email_subject_template?: string
+          email_body_template?: string
+          webhook_enabled?: boolean
+          email_enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hotmart_products: {
+        Row: {
+          id: string
+          product_id: string
+          product_name: string | null
+          area_slug: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          product_name?: string | null
+          area_slug: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          product_name?: string | null
+          area_slug?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      webhook_logs: {
+        Row: {
+          id: string
+          area_slug: string | null
+          event_type: string | null
+          buyer_email: string | null
+          buyer_name: string | null
+          product_id: string | null
+          transaction_id: string | null
+          status: string
+          error_message: string | null
+          raw_payload: Record<string, unknown> | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          area_slug?: string | null
+          event_type?: string | null
+          buyer_email?: string | null
+          buyer_name?: string | null
+          product_id?: string | null
+          transaction_id?: string | null
+          status?: string
+          error_message?: string | null
+          raw_payload?: Record<string, unknown> | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          area_slug?: string | null
+          event_type?: string | null
+          buyer_email?: string | null
+          buyer_name?: string | null
+          product_id?: string | null
+          transaction_id?: string | null
+          status?: string
+          error_message?: string | null
+          raw_payload?: Record<string, unknown> | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

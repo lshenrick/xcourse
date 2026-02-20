@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, X, MessageCircle, LogOut, Users, Shield, Globe, Trash2, UserPlus, Clock, Star, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, BookOpen, Bell, Monitor, Smartphone, Tablet, CheckCircle2, Search } from "lucide-react";
+import { Check, X, MessageCircle, LogOut, Users, Shield, Globe, Trash2, UserPlus, Clock, Star, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, BookOpen, Bell, Monitor, Smartphone, Tablet, CheckCircle2, Search, Link2 } from "lucide-react";
 import { CourseContentManager } from "@/components/admin/CourseContentManager";
 import { MemberAreasManager } from "@/components/admin/MemberAreasManager";
+import { IntegrationsManager } from "@/components/admin/IntegrationsManager";
 import { toast } from "sonner";
 // Emails com acesso admin (adicione mais emails aqui)
 const ADMIN_EMAILS = [
@@ -459,6 +460,7 @@ const AdminPanel = () => {
             <TabsTrigger value="comments" className="gap-2"><MessageCircle className="h-4 w-4" /> Comentários</TabsTrigger>
             <TabsTrigger value="access" className="gap-2"><Users className="h-4 w-4" /> Acessos</TabsTrigger>
             <TabsTrigger value="areas" className="gap-2"><Globe className="h-4 w-4" /> Áreas</TabsTrigger>
+            <TabsTrigger value="integrations" className="gap-2"><Link2 className="h-4 w-4" /> Integrações</TabsTrigger>
             {isSuperAdmin && (
               <TabsTrigger value="admins" className="gap-2"><Shield className="h-4 w-4" /> Administradores</TabsTrigger>
             )}
@@ -472,6 +474,11 @@ const AdminPanel = () => {
           {/* AREAS TAB */}
           <TabsContent value="areas">
             <MemberAreasManager />
+          </TabsContent>
+
+          {/* INTEGRATIONS TAB */}
+          <TabsContent value="integrations">
+            <IntegrationsManager />
           </TabsContent>
 
           {/* COMMENTS TAB */}
