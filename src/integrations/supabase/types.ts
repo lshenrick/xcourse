@@ -150,6 +150,7 @@ export type Database = {
           position: number
           title: string
           type: string
+          custom_labels: Record<string, string> | null
           updated_at: string
         }
         Insert: {
@@ -160,6 +161,7 @@ export type Database = {
           position?: number
           title: string
           type?: string
+          custom_labels?: Record<string, string> | null
           updated_at?: string
         }
         Update: {
@@ -170,6 +172,7 @@ export type Database = {
           position?: number
           title?: string
           type?: string
+          custom_labels?: Record<string, string> | null
           updated_at?: string
         }
         Relationships: [

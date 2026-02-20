@@ -31,6 +31,7 @@ export function LessonViewer({
   translations, onLessonComplete, language, supportEmail,
 }: LessonViewerProps) {
   const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
+  const [lessonLabels, setLessonLabels] = useState<Record<string, string> | null>(null);
 
   const allLessons = modules.flatMap((mod) =>
     mod.lessons.map((l) => ({ ...l, module: mod }))
@@ -42,6 +43,9 @@ export function LessonViewer({
 
   useEffect(() => {
     setContentBlocks([]);
+    setLessonLabels(null);
+
+    // Fetch content blocks
     supabase
       .from("lesson_content_blocks")
       .select("*")
@@ -50,19 +54,34 @@ export function LessonViewer({
       .then(({ data }) => {
         if (data) setContentBlocks(data as ContentBlock[]);
       });
+
+    // Fetch lesson custom_labels
+    supabase
+      .from("course_lessons")
+      .select("custom_labels")
+      .eq("id", lessonId)
+      .single()
+      .then(({ data }) => {
+        if (data && (data as any).custom_labels) {
+          setLessonLabels((data as any).custom_labels);
+        }
+      });
   }, [lessonId]);
 
   if (!current) return null;
 
+  // Merge: default translations ← lesson custom_labels (per-lesson overrides)
+  const t = lessonLabels ? { ...translations, ...lessonLabels } : translations;
+
   const renderContent = () => {
     switch (current.type) {
       case "audio":
-        return <AudioContent contentBlocks={contentBlocks} translations={translations} />;
+        return <AudioContent contentBlocks={contentBlocks} translations={t} />;
       case "ebook":
-        return <EbookContent contentBlocks={contentBlocks} translations={translations} />;
+        return <EbookContent contentBlocks={contentBlocks} translations={t} />;
       case "video":
       default:
-        return <VideoContent contentBlocks={contentBlocks} translations={translations} />;
+        return <VideoContent contentBlocks={contentBlocks} translations={t} />;
     }
   };
 
