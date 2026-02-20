@@ -96,6 +96,8 @@ const AdminPanel = () => {
   const [expandedSection, setExpandedSection] = useState<string>("accesses");
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [newAdminName, setNewAdminName] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [userSearch, setUserSearch] = useState("");
@@ -325,34 +327,42 @@ const AdminPanel = () => {
   };
 
   const handleAddAdmin = async () => {
-    if (!newAdminEmail.trim()) return;
+    if (!newAdminEmail.trim() || !newAdminPassword.trim()) {
+      toast.error("Preencha email e senha");
+      return;
+    }
+    if (newAdminPassword.length < 6) {
+      toast.error("A senha precisa ter no mínimo 6 caracteres");
+      return;
+    }
     setAddingAdmin(true);
-    
-    // Find user by email
-    const { data: profiles } = await supabaseAdmin.from("profiles").select("id").eq("email", newAdminEmail.trim());
-    if (!profiles || profiles.length === 0) {
-      toast.error("Usuário não encontrado. O email precisa estar cadastrado na plataforma.");
-      setAddingAdmin(false);
-      return;
-    }
 
-    const targetUserId = profiles[0].id;
-
-    // Check if already admin
-    const existing = adminUsers.find((a) => a.user_id === targetUserId);
-    if (existing) {
-      toast.error("Este usuário já é administrador.");
-      setAddingAdmin(false);
-      return;
-    }
-
-    const { error } = await supabaseAdmin.from("user_roles").insert({ user_id: targetUserId, role: "admin" });
-    if (error) {
-      toast.error("Erro ao adicionar administrador.");
-    } else {
-      toast.success("Administrador adicionado com sucesso!");
-      setNewAdminEmail("");
-      fetchAdminUsers();
+    try {
+      const res = await fetch("/api/create-admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: newAdminEmail.trim(),
+          password: newAdminPassword.trim(),
+          name: newAdminName.trim() || undefined,
+          callerUserId: user!.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Erro ao criar administrador");
+      } else {
+        const msg = data.emailSent
+          ? "Administrador criado! As credenciais foram enviadas por email."
+          : "Administrador criado com sucesso!";
+        toast.success(msg);
+        setNewAdminEmail("");
+        setNewAdminPassword("");
+        setNewAdminName("");
+        fetchAdminUsers();
+      }
+    } catch {
+      toast.error("Erro de conexão ao criar administrador");
     }
     setAddingAdmin(false);
   };
@@ -754,23 +764,47 @@ const AdminPanel = () => {
                 <p className="text-sm text-muted-foreground">Apenas você (Super Admin) pode adicionar ou remover outros administradores.</p>
               </div>
 
-              <div className="bg-card border border-border rounded-lg p-4">
-                <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+              <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+                <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
                   <UserPlus className="h-4 w-4" /> Adicionar Administrador
                 </h3>
-                <div className="flex gap-2">
-                  <Input
-                    type="email"
-                    placeholder="Email do usuário cadastrado..."
-                    value={newAdminEmail}
-                    onChange={(e) => setNewAdminEmail(e.target.value)}
-                    className="max-w-sm"
-                  />
-                  <Button onClick={handleAddAdmin} disabled={addingAdmin || !newAdminEmail.trim()} className="gap-2">
-                    <UserPlus className="h-4 w-4" /> Adicionar
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Nome</label>
+                    <Input
+                      placeholder="Nome do admin"
+                      value={newAdminName}
+                      onChange={(e) => setNewAdminName(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Email*</label>
+                    <Input
+                      type="email"
+                      placeholder="email@exemplo.com"
+                      value={newAdminEmail}
+                      onChange={(e) => setNewAdminEmail(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Senha*</label>
+                    <Input
+                      type="text"
+                      placeholder="Mínimo 6 caracteres"
+                      value={newAdminPassword}
+                      onChange={(e) => setNewAdminPassword(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">A conta será criada e as credenciais enviadas por email automaticamente.</p>
+                  <Button onClick={handleAddAdmin} disabled={addingAdmin || !newAdminEmail.trim() || !newAdminPassword.trim()} className="gap-2">
+                    <UserPlus className="h-4 w-4" /> Criar Admin
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">O usuário precisa já ter acessado a plataforma com este email.</p>
               </div>
 
               <div className="space-y-2">
