@@ -1,0 +1,1 @@
+ALTER TABLE public.access_logs ADD COLUMN device_type text DEFAULT 'unknown';
