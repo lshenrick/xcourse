@@ -65,36 +65,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: "Apenas super admins podem criar administradores" });
     }
 
-    // Create user via Supabase Auth Admin API
+    // Try to create user, or update if already exists
+    let userId: string;
+
     const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
       email: email.trim().toLowerCase(),
       password: password,
-      email_confirm: true, // skip email confirmation
+      email_confirm: true,
       user_metadata: { name: name?.trim() || "" },
     });
 
-    if (createError) {
-      if (createError.message.includes("already been registered")) {
-        return res.status(400).json({ error: "Este email já está cadastrado na plataforma" });
+    if (createError && createError.message.includes("already been registered")) {
+      // User already exists — find their ID and update password
+      const { data: existingUsers } = await supabase.auth.admin.listUsers();
+      const existingUser = existingUsers?.users?.find(
+        (u: any) => u.email === email.trim().toLowerCase()
+      );
+      if (!existingUser) {
+        return res.status(400).json({ error: "Usuário existe mas não foi possível encontrá-lo" });
       }
+      userId = existingUser.id;
+
+      // Update password
+      await supabase.auth.admin.updateUserById(userId, {
+        password: password,
+        user_metadata: { name: name?.trim() || existingUser.user_metadata?.name || "" },
+      });
+    } else if (createError) {
       return res.status(400).json({ error: createError.message });
-    }
-
-    if (!newUser?.user) {
+    } else if (!newUser?.user) {
       return res.status(500).json({ error: "Erro ao criar usuário" });
+    } else {
+      userId = newUser.user.id;
     }
 
-    // Create profile
+    // Create/update profile
     await supabase.from("profiles").upsert({
-      id: newUser.user.id,
+      id: userId,
       email: email.trim().toLowerCase(),
     });
 
-    // Add admin role
-    await supabase.from("user_roles").insert({
-      user_id: newUser.user.id,
-      role: "admin",
-    });
+    // Add admin role (ignore if already exists)
+    const { data: existingRole } = await supabase
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (!existingRole) {
+      await supabase.from("user_roles").insert({
+        user_id: userId,
+        role: "admin",
+      });
+    }
 
     // Send credentials email via Resend (if configured)
     let emailSent = false;
@@ -150,7 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       success: true,
-      userId: newUser.user.id,
+      userId,
       emailSent,
     });
   } catch (err: any) {
