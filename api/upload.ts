@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
+import crypto from "crypto";
 
 interface VercelRequest extends IncomingMessage {
   body: any;
@@ -11,38 +12,49 @@ interface VercelResponse extends ServerResponse {
   send(data: any): VercelResponse;
 }
 
+// IMPORTANT: Disable Vercel's automatic body parsing so we get raw binary
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 // Cloudflare R2 S3-compatible API
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "";
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "";
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "";
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "xmembers-files";
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || ""; // e.g. https://files.xmembers.app
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || "";
 
-// Simple HMAC-SHA256 signing for S3 API (AWS Signature V4)
-async function hmacSha256(key: Uint8Array, message: string): Promise<Uint8Array> {
-  const crypto = await import("crypto");
-  const hmac = crypto.createHmac("sha256", key);
-  hmac.update(message);
-  return new Uint8Array(hmac.digest());
+function hmacSha256(key: Buffer | Uint8Array, message: string): Buffer {
+  return crypto.createHmac("sha256", key).update(message).digest();
 }
 
-async function sha256(data: Buffer | string): Promise<string> {
-  const crypto = await import("crypto");
+function sha256hex(data: Buffer | string): string {
   return crypto.createHash("sha256").update(data).digest("hex");
 }
 
-async function getSignatureKey(key: string, dateStamp: string, region: string, service: string) {
-  let kDate = await hmacSha256(new TextEncoder().encode("AWS4" + key), dateStamp);
-  let kRegion = await hmacSha256(kDate, region);
-  let kService = await hmacSha256(kRegion, service);
-  let kSigning = await hmacSha256(kService, "aws4_request");
+function getSignatureKey(key: string, dateStamp: string, region: string, service: string): Buffer {
+  const kDate = hmacSha256(Buffer.from("AWS4" + key), dateStamp);
+  const kRegion = hmacSha256(kDate, region);
+  const kService = hmacSha256(kRegion, service);
+  const kSigning = hmacSha256(kService, "aws4_request");
   return kSigning;
 }
 
-function collectBody(req: IncomingMessage): Promise<Buffer> {
+function collectBody(req: IncomingMessage, maxSize: number = 500 * 1024 * 1024): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    let totalSize = 0;
+    req.on("data", (chunk: Buffer) => {
+      totalSize += chunk.length;
+      if (totalSize > maxSize) {
+        reject(new Error(`File too large. Max size: ${Math.round(maxSize / 1024 / 1024)}MB`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
@@ -63,8 +75,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Validate R2 credentials
-  if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_PUBLIC_URL) {
-    return res.status(500).json({ error: "R2 not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_PUBLIC_URL in Vercel env." });
+  const missingVars: string[] = [];
+  if (!R2_ACCOUNT_ID) missingVars.push("R2_ACCOUNT_ID");
+  if (!R2_ACCESS_KEY_ID) missingVars.push("R2_ACCESS_KEY_ID");
+  if (!R2_SECRET_ACCESS_KEY) missingVars.push("R2_SECRET_ACCESS_KEY");
+  if (!R2_PUBLIC_URL) missingVars.push("R2_PUBLIC_URL");
+
+  if (missingVars.length > 0) {
+    return res.status(500).json({
+      error: "R2 not configured",
+      missing: missingVars,
+      message: `Missing env vars: ${missingVars.join(", ")}. Add them in Vercel Settings → Environment Variables.`,
+    });
   }
 
   try {
@@ -80,29 +102,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Read the raw body
     const body = await collectBody(req);
 
+    if (body.length === 0) {
+      return res.status(400).json({ error: "Empty file body" });
+    }
+
     // S3 API endpoint for Cloudflare R2
-    const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-    const url = `${endpoint}/${R2_BUCKET_NAME}/${objectKey}`;
+    const host = `${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+    const url = `https://${host}/${R2_BUCKET_NAME}/${objectKey}`;
 
     // AWS Signature V4
     const now = new Date();
-    const dateStamp = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-    const dateOnly = dateStamp.substring(0, 8);
+    const amzDate = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const dateOnly = amzDate.substring(0, 8);
     const region = "auto";
     const service = "s3";
-    const payloadHash = await sha256(body);
+    const payloadHash = sha256hex(body);
 
+    // Canonical headers must be sorted alphabetically by key
     const canonicalHeaders =
       `content-type:${fileType}\n` +
-      `host:${R2_ACCOUNT_ID}.r2.cloudflarestorage.com\n` +
+      `host:${host}\n` +
       `x-amz-content-sha256:${payloadHash}\n` +
-      `x-amz-date:${dateStamp}\n`;
+      `x-amz-date:${amzDate}\n`;
     const signedHeaders = "content-type;host;x-amz-content-sha256;x-amz-date";
+
+    // URI encode the path segments
+    const encodedKey = objectKey
+      .split("/")
+      .map((s) => encodeURIComponent(s))
+      .join("/");
 
     const canonicalRequest = [
       "PUT",
-      `/${R2_BUCKET_NAME}/${objectKey}`,
-      "",
+      `/${R2_BUCKET_NAME}/${encodedKey}`,
+      "", // empty query string
       canonicalHeaders,
       signedHeaders,
       payloadHash,
@@ -111,14 +144,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const credentialScope = `${dateOnly}/${region}/${service}/aws4_request`;
     const stringToSign = [
       "AWS4-HMAC-SHA256",
-      dateStamp,
+      amzDate,
       credentialScope,
-      await sha256(canonicalRequest),
+      sha256hex(canonicalRequest),
     ].join("\n");
 
-    const signingKey = await getSignatureKey(R2_SECRET_ACCESS_KEY, dateOnly, region, service);
-    const crypto = await import("crypto");
-    const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+    const signingKey = getSignatureKey(R2_SECRET_ACCESS_KEY, dateOnly, region, service);
+    const signature = crypto
+      .createHmac("sha256", signingKey)
+      .update(stringToSign)
+      .digest("hex");
 
     const authorization = `AWS4-HMAC-SHA256 Credential=${R2_ACCESS_KEY_ID}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
@@ -128,7 +163,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: {
         "Content-Type": fileType,
         "x-amz-content-sha256": payloadHash,
-        "x-amz-date": dateStamp,
+        "x-amz-date": amzDate,
         Authorization: authorization,
       },
       body: body,
@@ -136,8 +171,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!uploadRes.ok) {
       const errText = await uploadRes.text();
-      console.error("R2 upload error:", errText);
-      return res.status(500).json({ error: "Upload to R2 failed", details: errText });
+      console.error("R2 upload error:", uploadRes.status, errText);
+      return res.status(500).json({
+        error: "Upload to R2 failed",
+        status: uploadRes.status,
+        details: errText,
+      });
     }
 
     // Return public URL
@@ -152,6 +191,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Upload error:", message);
-    return res.status(500).json({ error: "Upload failed", message });
+    return res.status(500).json({ error: message });
   }
 }
