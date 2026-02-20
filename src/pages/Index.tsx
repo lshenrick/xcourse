@@ -16,6 +16,7 @@ interface AreaContext {
   title: string;
   langCode: LanguageCode;
   supportEmail: string;
+  customLabels: Record<string, string> | null;
 }
 
 const Index = () => {
@@ -41,6 +42,7 @@ const Index = () => {
         title: `${lang.mestraTitle} ${lang.mestraName}`,
         langCode: lang.code,
         supportEmail: "contact@everwynventures.com",
+        customLabels: null,
       });
       setAreaLoading(false);
       return;
@@ -49,19 +51,29 @@ const Index = () => {
     // Try database
     supabase
       .from("member_areas")
-      .select("slug, title, lang_code, support_email")
+      .select("slug, title, lang_code, support_email, custom_labels")
       .eq("slug", slug)
       .eq("active", true)
       .single()
       .then(({ data }) => {
         if (data) {
-          setArea({ slug: data.slug, title: data.title, langCode: (data.lang_code || "pt") as LanguageCode, supportEmail: data.support_email || "contact@everwynventures.com" });
+          setArea({
+            slug: data.slug,
+            title: data.title,
+            langCode: (data.lang_code || "pt") as LanguageCode,
+            supportEmail: data.support_email || "contact@everwynventures.com",
+            customLabels: (data as any).custom_labels || null,
+          });
         }
         setAreaLoading(false);
       });
   }, [langSlug]);
 
-  const t = area ? uiTranslations[area.langCode] : null;
+  // Merge default translations with custom labels from admin
+  const baseT = area ? uiTranslations[area.langCode] : null;
+  const t = baseT && area?.customLabels
+    ? { ...baseT, ...area.customLabels }
+    : baseT;
 
   // Fetch user display name
   useEffect(() => {

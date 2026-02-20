@@ -378,6 +378,7 @@ export type Database = {
           button_text: string
           lang_code: string
           support_email: string
+          custom_labels: Record<string, string> | null
           active: boolean
           position: number
           created_at: string
@@ -393,6 +394,7 @@ export type Database = {
           button_text?: string
           lang_code?: string
           support_email?: string
+          custom_labels?: Record<string, string> | null
           active?: boolean
           position?: number
           created_at?: string
@@ -408,6 +410,7 @@ export type Database = {
           button_text?: string
           lang_code?: string
           support_email?: string
+          custom_labels?: Record<string, string> | null
           active?: boolean
           position?: number
           created_at?: string
