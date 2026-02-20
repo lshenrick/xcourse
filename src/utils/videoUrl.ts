@@ -51,49 +51,77 @@ export function parseVideoUrl(url: string): ParsedVideoUrl {
 }
 
 /**
- * Upload a file to Cloudflare R2 via the /api/upload endpoint.
+ * Upload a file to Cloudflare R2 using presigned URLs.
+ *
+ * Flow:
+ * 1. Call /api/upload with file metadata (small JSON) → get presigned URL
+ * 2. Upload file directly from browser to R2 using presigned URL (bypasses Vercel 4.5MB limit)
+ *
  * Returns the public URL of the uploaded file.
  */
 export async function uploadToR2(
   file: File,
   folder: string = "uploads"
 ): Promise<{ url: string; key: string; fileName: string }> {
-  let response: Response;
+  // Step 1: Get presigned URL from our API (small JSON request)
+  let presignResponse: Response;
 
   try {
-    response = await fetch("/api/upload", {
+    presignResponse = await fetch("/api/upload", {
       method: "POST",
       headers: {
-        "Content-Type": file.type || "application/octet-stream",
-        "x-file-name": encodeURIComponent(file.name),
-        "x-file-type": file.type || "application/octet-stream",
-        "x-folder": folder,
+        "Content-Type": "application/json",
       },
-      body: file,
+      body: JSON.stringify({
+        fileName: encodeURIComponent(file.name),
+        fileType: file.type || "application/octet-stream",
+        folder: folder,
+      }),
     });
   } catch (fetchErr) {
-    console.error("Upload fetch error:", fetchErr);
-    throw new Error("Erro de conexão ao enviar arquivo. Verifique sua internet.");
+    console.error("Presign fetch error:", fetchErr);
+    throw new Error("Erro de conexão. Verifique sua internet.");
   }
 
-  if (!response.ok) {
-    let errMsg = `Upload falhou (HTTP ${response.status})`;
+  if (!presignResponse.ok) {
+    let errMsg = `Erro ao preparar upload (HTTP ${presignResponse.status})`;
     try {
-      const errBody = await response.text();
-      console.error("Upload error response:", response.status, errBody);
+      const errBody = await presignResponse.text();
+      console.error("Presign error:", presignResponse.status, errBody);
       const errJson = JSON.parse(errBody);
       errMsg = errJson.error || errJson.message || errMsg;
       if (errJson.missing) {
         errMsg += ` — Variáveis faltando: ${errJson.missing.join(", ")}`;
       }
-      if (errJson.details) {
-        errMsg += ` — ${errJson.details.substring(0, 200)}`;
-      }
     } catch {
-      // couldn't parse JSON, use status text
+      // couldn't parse
     }
     throw new Error(errMsg);
   }
 
-  return response.json();
+  const { presignedUrl, publicUrl, fileName } = await presignResponse.json();
+
+  // Step 2: Upload file directly to R2 using presigned URL (no size limit!)
+  let uploadResponse: Response;
+
+  try {
+    uploadResponse = await fetch(presignedUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+      },
+      body: file,
+    });
+  } catch (uploadErr) {
+    console.error("R2 upload error:", uploadErr);
+    throw new Error("Erro ao enviar arquivo para o storage. Verifique sua internet.");
+  }
+
+  if (!uploadResponse.ok) {
+    const errText = await uploadResponse.text().catch(() => "");
+    console.error("R2 upload failed:", uploadResponse.status, errText);
+    throw new Error(`Upload para R2 falhou (HTTP ${uploadResponse.status})`);
+  }
+
+  return { url: publicUrl, key: fileName, fileName };
 }
