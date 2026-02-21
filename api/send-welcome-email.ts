@@ -1,6 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { createClient } from "@supabase/supabase-js";
-import { buildEmailHtml, getEmailI18n } from "../lib/email-i18n";
 
 interface VercelRequest extends IncomingMessage {
   body: any;
@@ -21,14 +20,93 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-// Resend email sending
-async function sendEmail(
-  resendApiKey: string,
-  from: string,
-  to: string,
-  subject: string,
-  html: string
-) {
+// ─── Email translations (inline, no external imports) ───
+
+const BTN = 'display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;';
+
+const emailI18n: Record<string, { headerTitle: string; footerText: string; defaultSubject: string; defaultBody: string; fallbackName: string }> = {
+  pt: {
+    headerTitle: "Acesso Liberado!",
+    footerText: "Este email foi enviado automaticamente. Não é necessário responder.",
+    defaultSubject: "Seu acesso ao curso está liberado!",
+    defaultBody: `Olá {name},<br><br>Seu acesso ao curso <strong>{course_name}</strong> está liberado!<br><br><a href="{access_link}" style="${BTN}">Acessar Curso</a><br><br>Use o email <strong>{email}</strong> para fazer login.<br><br>Bons estudos!`,
+    fallbackName: "Aluno(a)",
+  },
+  en: {
+    headerTitle: "Access Granted!",
+    footerText: "This email was sent automatically. No reply needed.",
+    defaultSubject: "Your course access is ready!",
+    defaultBody: `Hi {name},<br><br>Your access to <strong>{course_name}</strong> is now available!<br><br><a href="{access_link}" style="${BTN}">Access Course</a><br><br>Use the email <strong>{email}</strong> to sign in.<br><br>Happy learning!`,
+    fallbackName: "Student",
+  },
+  es: {
+    headerTitle: "¡Acceso Liberado!",
+    footerText: "Este correo fue enviado automáticamente. No es necesario responder.",
+    defaultSubject: "¡Tu acceso al curso está listo!",
+    defaultBody: `Hola {name},<br><br>¡Tu acceso a <strong>{course_name}</strong> está disponible!<br><br><a href="{access_link}" style="${BTN}">Acceder al Curso</a><br><br>Usa el email <strong>{email}</strong> para iniciar sesión.<br><br>¡Buenos estudios!`,
+    fallbackName: "Estudiante",
+  },
+  de: {
+    headerTitle: "Zugang Freigeschaltet!",
+    footerText: "Diese E-Mail wurde automatisch gesendet. Keine Antwort erforderlich.",
+    defaultSubject: "Dein Kurszugang ist freigeschaltet!",
+    defaultBody: `Hallo {name},<br><br>Dein Zugang zu <strong>{course_name}</strong> ist jetzt verfügbar!<br><br><a href="{access_link}" style="${BTN}">Kurs Zugreifen</a><br><br>Verwende die E-Mail <strong>{email}</strong> zum Anmelden.<br><br>Viel Erfolg beim Lernen!`,
+    fallbackName: "Teilnehmer(in)",
+  },
+  fr: {
+    headerTitle: "Accès Activé !",
+    footerText: "Cet email a été envoyé automatiquement. Aucune réponse nécessaire.",
+    defaultSubject: "Votre accès au cours est prêt !",
+    defaultBody: `Bonjour {name},<br><br>Votre accès à <strong>{course_name}</strong> est maintenant disponible !<br><br><a href="{access_link}" style="${BTN}">Accéder au Cours</a><br><br>Utilisez l'email <strong>{email}</strong> pour vous connecter.<br><br>Bon apprentissage !`,
+    fallbackName: "Étudiant(e)",
+  },
+  it: {
+    headerTitle: "Accesso Attivato!",
+    footerText: "Questa email è stata inviata automaticamente. Non è necessario rispondere.",
+    defaultSubject: "Il tuo accesso al corso è pronto!",
+    defaultBody: `Ciao {name},<br><br>Il tuo accesso a <strong>{course_name}</strong> è ora disponibile!<br><br><a href="{access_link}" style="${BTN}">Accedi al Corso</a><br><br>Usa l'email <strong>{email}</strong> per accedere.<br><br>Buono studio!`,
+    fallbackName: "Studente",
+  },
+};
+
+function getLang(lang: string) {
+  return emailI18n[lang] || emailI18n.pt;
+}
+
+function buildEmailHtml(template: string, vars: Record<string, string>, lang: string = "pt"): string {
+  const t = getLang(lang);
+  let html = template;
+  for (const [key, value] of Object.entries(vars)) {
+    html = html.replace(new RegExp(`\\{${key}\\}`, "g"), value);
+  }
+  const courseName = vars.course_name || "";
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:linear-gradient(180deg,#f5f3ff 0%,#f4f4f5 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:580px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#18181b 0%,#27272a 100%);padding:40px 32px;text-align:center;">
+      <div style="width:64px;height:64px;background:rgba(124,58,237,0.15);border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
+        <span style="font-size:32px;line-height:64px;">🎉</span>
+      </div>
+      <h1 style="color:#ffffff;font-size:24px;margin:0 0 8px;font-weight:700;">${t.headerTitle}</h1>
+      <p style="color:#a1a1aa;font-size:14px;margin:0;">${courseName}</p>
+    </div>
+    <div style="padding:36px 32px;color:#27272a;font-size:15px;line-height:1.7;">
+      ${html}
+    </div>
+    <div style="padding:20px 32px;background:#fafafa;border-top:1px solid #e4e4e7;text-align:center;">
+      <p style="color:#a1a1aa;font-size:12px;margin:0;">${t.footerText}</p>
+      <p style="color:#d4d4d8;font-size:11px;margin:8px 0 0;">Powered by xmembers.app</p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// ─── Resend email sending ───
+
+async function sendEmail(resendApiKey: string, from: string, to: string, subject: string, html: string) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -44,13 +122,13 @@ async function sendEmail(
   return res.json();
 }
 
+// ─── Handler ───
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Only accept POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Verify auth — caller must be authenticated admin
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -59,13 +137,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = getSupabase();
   const token = authHeader.replace("Bearer ", "");
 
-  // Verify the user is authenticated
   const { data: userData, error: authError } = await supabase.auth.getUser(token);
   if (authError || !userData?.user) {
     return res.status(401).json({ error: "Invalid token" });
   }
 
-  // Verify user is admin (roles are in user_roles table)
   const { data: userRoles } = await supabase
     .from("user_roles")
     .select("role")
@@ -76,7 +152,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: "Forbidden - admin only" });
   }
 
-  // Extract body
   const { email, name, area_slug } = req.body || {};
 
   if (!email || !area_slug) {
@@ -88,14 +163,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Get integration settings for the area
     const { data: settings } = await supabase
       .from("integration_settings")
       .select("*")
       .eq("area_slug", area_slug)
       .maybeSingle();
 
-    // Get area info (including language)
     const { data: areaInfo } = await supabase
       .from("member_areas")
       .select("title, slug, lang_code")
@@ -108,23 +181,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const courseName = areaInfo.title || area_slug;
     const lang = (areaInfo as any)?.lang_code || "pt";
-    const emailI18n = getEmailI18n(lang);
+    const t = getLang(lang);
     const host = req.headers["x-forwarded-host"] || req.headers.host || "xmembers.app";
     const proto = req.headers["x-forwarded-proto"] || "https";
     const accessLink = `${proto}://${host}/${area_slug}`;
 
-    // Build subject from template (fallback to language-specific default)
-    const subjectTemplate = settings?.email_subject_template || emailI18n.defaultSubject;
+    const subjectTemplate = settings?.email_subject_template || t.defaultSubject;
     const subject = subjectTemplate
       .replace(/\{name\}/g, name || "")
       .replace(/\{course_name\}/g, courseName)
       .replace(/\{email\}/g, email);
 
-    // Build body from template (fallback to language-specific default)
-    const bodyTemplate = settings?.email_body_template || emailI18n.defaultBody;
+    const bodyTemplate = settings?.email_body_template || t.defaultBody;
 
     const bodyHtml = buildEmailHtml(bodyTemplate, {
-      name: name || emailI18n.fallbackName,
+      name: name || t.fallbackName,
       course_name: courseName,
       access_link: accessLink,
       email: email,

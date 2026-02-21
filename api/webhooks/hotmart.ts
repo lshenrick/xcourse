@@ -1,6 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { createClient } from "@supabase/supabase-js";
-import { buildEmailHtml, getEmailI18n } from "../../lib/email-i18n";
 
 // Vercel serverless types (inline to avoid dependency)
 interface VercelRequest extends IncomingMessage {
@@ -22,14 +21,93 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-// Resend email sending
-async function sendEmail(
-  resendApiKey: string,
-  from: string,
-  to: string,
-  subject: string,
-  html: string
-) {
+// ─── Email translations (inline, no external imports) ───
+
+const BTN = 'display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;';
+
+const emailI18n: Record<string, { headerTitle: string; footerText: string; defaultSubject: string; defaultBody: string; fallbackName: string }> = {
+  pt: {
+    headerTitle: "Acesso Liberado!",
+    footerText: "Este email foi enviado automaticamente. Não é necessário responder.",
+    defaultSubject: "Seu acesso ao curso está liberado!",
+    defaultBody: `Olá {name},<br><br>Seu acesso ao curso <strong>{course_name}</strong> está liberado!<br><br><a href="{access_link}" style="${BTN}">Acessar Curso</a><br><br>Use o email <strong>{email}</strong> para fazer login.<br><br>Bons estudos!`,
+    fallbackName: "Aluno(a)",
+  },
+  en: {
+    headerTitle: "Access Granted!",
+    footerText: "This email was sent automatically. No reply needed.",
+    defaultSubject: "Your course access is ready!",
+    defaultBody: `Hi {name},<br><br>Your access to <strong>{course_name}</strong> is now available!<br><br><a href="{access_link}" style="${BTN}">Access Course</a><br><br>Use the email <strong>{email}</strong> to sign in.<br><br>Happy learning!`,
+    fallbackName: "Student",
+  },
+  es: {
+    headerTitle: "¡Acceso Liberado!",
+    footerText: "Este correo fue enviado automáticamente. No es necesario responder.",
+    defaultSubject: "¡Tu acceso al curso está listo!",
+    defaultBody: `Hola {name},<br><br>¡Tu acceso a <strong>{course_name}</strong> está disponible!<br><br><a href="{access_link}" style="${BTN}">Acceder al Curso</a><br><br>Usa el email <strong>{email}</strong> para iniciar sesión.<br><br>¡Buenos estudios!`,
+    fallbackName: "Estudiante",
+  },
+  de: {
+    headerTitle: "Zugang Freigeschaltet!",
+    footerText: "Diese E-Mail wurde automatisch gesendet. Keine Antwort erforderlich.",
+    defaultSubject: "Dein Kurszugang ist freigeschaltet!",
+    defaultBody: `Hallo {name},<br><br>Dein Zugang zu <strong>{course_name}</strong> ist jetzt verfügbar!<br><br><a href="{access_link}" style="${BTN}">Kurs Zugreifen</a><br><br>Verwende die E-Mail <strong>{email}</strong> zum Anmelden.<br><br>Viel Erfolg beim Lernen!`,
+    fallbackName: "Teilnehmer(in)",
+  },
+  fr: {
+    headerTitle: "Accès Activé !",
+    footerText: "Cet email a été envoyé automatiquement. Aucune réponse nécessaire.",
+    defaultSubject: "Votre accès au cours est prêt !",
+    defaultBody: `Bonjour {name},<br><br>Votre accès à <strong>{course_name}</strong> est maintenant disponible !<br><br><a href="{access_link}" style="${BTN}">Accéder au Cours</a><br><br>Utilisez l'email <strong>{email}</strong> pour vous connecter.<br><br>Bon apprentissage !`,
+    fallbackName: "Étudiant(e)",
+  },
+  it: {
+    headerTitle: "Accesso Attivato!",
+    footerText: "Questa email è stata inviata automaticamente. Non è necessario rispondere.",
+    defaultSubject: "Il tuo accesso al corso è pronto!",
+    defaultBody: `Ciao {name},<br><br>Il tuo accesso a <strong>{course_name}</strong> è ora disponibile!<br><br><a href="{access_link}" style="${BTN}">Accedi al Corso</a><br><br>Usa l'email <strong>{email}</strong> per accedere.<br><br>Buono studio!`,
+    fallbackName: "Studente",
+  },
+};
+
+function getLang(lang: string) {
+  return emailI18n[lang] || emailI18n.pt;
+}
+
+function buildEmailHtml(template: string, vars: Record<string, string>, lang: string = "pt"): string {
+  const t = getLang(lang);
+  let html = template;
+  for (const [key, value] of Object.entries(vars)) {
+    html = html.replace(new RegExp(`\\{${key}\\}`, "g"), value);
+  }
+  const courseName = vars.course_name || "";
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:linear-gradient(180deg,#f5f3ff 0%,#f4f4f5 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:580px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#18181b 0%,#27272a 100%);padding:40px 32px;text-align:center;">
+      <div style="width:64px;height:64px;background:rgba(124,58,237,0.15);border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
+        <span style="font-size:32px;line-height:64px;">🎉</span>
+      </div>
+      <h1 style="color:#ffffff;font-size:24px;margin:0 0 8px;font-weight:700;">${t.headerTitle}</h1>
+      <p style="color:#a1a1aa;font-size:14px;margin:0;">${courseName}</p>
+    </div>
+    <div style="padding:36px 32px;color:#27272a;font-size:15px;line-height:1.7;">
+      ${html}
+    </div>
+    <div style="padding:20px 32px;background:#fafafa;border-top:1px solid #e4e4e7;text-align:center;">
+      <p style="color:#a1a1aa;font-size:12px;margin:0;">${t.footerText}</p>
+      <p style="color:#d4d4d8;font-size:11px;margin:8px 0 0;">Powered by xmembers.app</p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// ─── Resend email sending ───
+
+async function sendEmail(resendApiKey: string, from: string, to: string, subject: string, html: string) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -45,9 +123,9 @@ async function sendEmail(
   return res.json();
 }
 
+// ─── Handler ───
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Only accept POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -55,7 +133,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = getSupabase();
   const payload = req.body;
 
-  // Log the raw webhook
   const logEntry = {
     event_type: payload?.event || "unknown",
     buyer_email: payload?.data?.buyer?.email || null,
@@ -67,14 +144,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   try {
-    // Extract Hotmart data (v2.0.0 payload)
     const event = payload?.event;
     const buyerEmail = payload?.data?.buyer?.email;
     const buyerName = payload?.data?.buyer?.name;
     const productId = payload?.data?.product?.id?.toString();
     const transaction = payload?.data?.purchase?.transaction;
 
-    // Validate required fields
     if (!event || !buyerEmail || !productId) {
       await supabase.from("webhook_logs").insert({
         ...logEntry,
@@ -84,7 +159,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Find which area this product belongs to
     const { data: productMapping } = await supabase
       .from("hotmart_products")
       .select("area_slug, product_name")
@@ -99,21 +173,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ status: "ignored", reason: "Product not mapped" });
     }
 
-    // Verify hottok for each area
     const hottok = req.headers["x-hotmart-hottok"] as string;
 
-    // Process for each mapped area
     for (const mapping of productMapping) {
       const areaSlug = mapping.area_slug;
 
-      // Check integration settings
       const { data: settings } = await supabase
         .from("integration_settings")
         .select("*")
         .eq("area_slug", areaSlug)
         .single();
 
-      // Verify hottok if configured
       if (settings?.hottok && hottok !== settings.hottok) {
         await supabase.from("webhook_logs").insert({
           ...logEntry,
@@ -124,7 +194,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         continue;
       }
 
-      // Check if webhook is enabled
       if (settings && !settings.webhook_enabled) {
         await supabase.from("webhook_logs").insert({
           ...logEntry,
@@ -135,9 +204,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         continue;
       }
 
-      // Handle different events
       if (event === "PURCHASE_APPROVED" || event === "PURCHASE_COMPLETE") {
-        // Upsert authorized buyer
         const { error: buyerError } = await supabase
           .from("authorized_buyers")
           .upsert(
@@ -154,7 +221,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           );
 
         if (buyerError) {
-          // Try insert if upsert fails (unique constraint on lower(email))
           const { error: insertError } = await supabase
             .from("authorized_buyers")
             .insert({
@@ -177,10 +243,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
-        // Send welcome email if enabled (uses global RESEND_API_KEY)
         if (settings?.email_enabled && RESEND_API_KEY) {
           try {
-            // Get area info for email (including language)
             const { data: areaInfo } = await supabase
               .from("member_areas")
               .select("title, slug, lang_code")
@@ -189,18 +253,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const courseName = areaInfo?.title || areaSlug;
             const lang = (areaInfo as any)?.lang_code || "pt";
-            const emailI18n = getEmailI18n(lang);
+            const t = getLang(lang);
             const accessLink = `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}/${areaSlug}`;
 
-            const subject = (settings.email_subject_template || emailI18n.defaultSubject)
+            const subject = (settings.email_subject_template || t.defaultSubject)
               .replace(/\{name\}/g, buyerName || "")
               .replace(/\{course_name\}/g, courseName)
               .replace(/\{email\}/g, buyerEmail);
 
             const bodyHtml = buildEmailHtml(
-              settings.email_body_template || emailI18n.defaultBody,
+              settings.email_body_template || t.defaultBody,
               {
-                name: buyerName || emailI18n.fallbackName,
+                name: buyerName || t.fallbackName,
                 course_name: courseName,
                 access_link: accessLink,
                 email: buyerEmail,
@@ -217,7 +281,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             );
           } catch (emailErr: unknown) {
             const errorMessage = emailErr instanceof Error ? emailErr.message : "Unknown email error";
-            // Log email error but don't fail the webhook
             await supabase.from("webhook_logs").insert({
               ...logEntry,
               area_slug: areaSlug,
@@ -228,14 +291,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
-        // Log success
         await supabase.from("webhook_logs").insert({
           ...logEntry,
           area_slug: areaSlug,
           status: "processed",
         });
       } else if (event === "PURCHASE_REFUNDED" || event === "PURCHASE_CHARGEBACK") {
-        // Revoke access
         await supabase
           .from("authorized_buyers")
           .update({ status: "refunded", updated_at: new Date().toISOString() })
@@ -248,7 +309,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           status: "processed",
         });
       } else {
-        // Log other events
         await supabase.from("webhook_logs").insert({
           ...logEntry,
           area_slug: areaSlug,
