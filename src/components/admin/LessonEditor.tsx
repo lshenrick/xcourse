@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trash2, Upload, FileText, Code, Type, GripVertical, Save, Headphones, Video, Link, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { parseVideoUrl, uploadToR2 } from "@/utils/videoUrl";
+import { RichTextEditor } from "./RichTextEditor";
 
 interface ContentBlock {
   id?: string;
@@ -307,11 +308,10 @@ export function LessonEditor({ lessonId, onClose }: LessonEditorProps) {
 
                     {/* TEXT BLOCK */}
                     {block.block_type === "text" && (
-                      <Textarea
-                        value={block.content || ""}
-                        onChange={e => updateBlock(index, "content", e.target.value)}
+                      <RichTextEditor
+                        content={block.content || ""}
+                        onChange={(html) => updateBlock(index, "content", html)}
                         placeholder="Adicione texto, descrição, instruções..."
-                        className="min-h-[100px]"
                       />
                     )}
 
