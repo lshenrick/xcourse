@@ -93,6 +93,7 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   const [newBuyerEmail, setNewBuyerEmail] = useState("");
   const [newBuyerName, setNewBuyerName] = useState("");
   const [addingBuyer, setAddingBuyer] = useState(false);
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
 
   // Buyer search and pagination
   const [buyerSearch, setBuyerSearch] = useState("");
@@ -247,20 +248,58 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       return;
     }
     setAddingBuyer(true);
+    const buyerEmail = newBuyerEmail.trim().toLowerCase();
+    const buyerName = newBuyerName.trim() || null;
+
     const { error } = await supabase.from("authorized_buyers").insert({
-      email: newBuyerEmail.trim().toLowerCase(),
-      name: newBuyerName.trim() || null,
+      email: buyerEmail,
+      name: buyerName,
       area_slug: selectedArea,
       status: "active",
     });
     if (error) {
       toast.error(error.message.includes("duplicate") ? "Este email já está autorizado" : "Erro: " + error.message);
+      setAddingBuyer(false);
+      return;
+    }
+
+    // Send welcome email if checkbox is checked
+    if (sendWelcomeEmail) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (!token) throw new Error("Sessão expirada");
+
+        const res = await fetch("/api/send-welcome-email", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            email: buyerEmail,
+            name: buyerName,
+            area_slug: selectedArea,
+          }),
+        });
+
+        if (res.ok) {
+          toast.success("Comprador autorizado e email enviado!");
+        } else {
+          const data = await res.json().catch(() => ({}));
+          toast.warning(`Comprador autorizado, mas falha ao enviar email: ${data.error || "Erro desconhecido"}`);
+        }
+      } catch (emailErr: unknown) {
+        const msg = emailErr instanceof Error ? emailErr.message : "Erro desconhecido";
+        toast.warning(`Comprador autorizado, mas falha ao enviar email: ${msg}`);
+      }
     } else {
       toast.success("Comprador autorizado!");
-      setNewBuyerEmail("");
-      setNewBuyerName("");
-      fetchBuyers();
     }
+
+    setNewBuyerEmail("");
+    setNewBuyerName("");
+    fetchBuyers();
     setAddingBuyer(false);
   };
 
@@ -501,9 +540,21 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
                 />
               </div>
             </div>
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sendWelcomeEmail}
+                  onChange={(e) => setSendWelcomeEmail(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm text-foreground flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                  Enviar email de boas-vindas
+                </span>
+              </label>
               <Button onClick={handleAddBuyer} disabled={addingBuyer} className="gap-2">
-                <UserPlus className="h-4 w-4" /> Autorizar
+                <UserPlus className="h-4 w-4" /> {addingBuyer ? "Autorizando..." : "Autorizar"}
               </Button>
             </div>
           </div>
