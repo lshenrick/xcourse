@@ -57,40 +57,82 @@
 
 /* Light theme override - applied per area */
 .theme-light {
-  --background: 0 0% 100%;
-  --foreground: 240 10% 10%;
+  --background: 0 0% 99%;
+  --foreground: 220 15% 16%;
 
-  --card: 0 0% 98%;
-  --card-foreground: 240 10% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 15% 16%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 10%;
+  --popover-foreground: 220 15% 16%;
 
-  --primary: 90 42% 45%;
+  --primary: 90 42% 42%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 240 5% 93%;
-  --secondary-foreground: 240 10% 10%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 220 15% 16%;
 
-  --muted: 240 5% 93%;
-  --muted-foreground: 240 4% 46%;
+  --muted: 220 14% 95%;
+  --muted-foreground: 220 9% 46%;
 
-  --accent: 40 40% 50%;
+  --accent: 32 60% 48%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 240 6% 90%;
-  --input: 240 6% 90%;
-  --ring: 90 42% 45%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 90 42% 42%;
 
-  --sidebar-background: 0 0% 97%;
-  --sidebar-foreground: 240 10% 10%;
-  --sidebar-primary: 90 42% 45%;
+  --sidebar-background: 220 14% 97%;
+  --sidebar-foreground: 220 15% 16%;
+  --sidebar-primary: 90 42% 42%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 5% 93%;
-  --sidebar-accent-foreground: 240 10% 10%;
-  --sidebar-border: 240 6% 90%;
-  --sidebar-ring: 90 42% 45%;
+  --sidebar-accent: 220 14% 93%;
+  --sidebar-accent-foreground: 220 15% 16%;
+  --sidebar-border: 220 13% 91%;
+  --sidebar-ring: 90 42% 42%;
+}
+
+/* Light theme specific overrides */
+.theme-light .prose {
+  --tw-prose-body: hsl(220 15% 16%);
+  --tw-prose-headings: hsl(220 15% 10%);
+  --tw-prose-links: hsl(90 42% 35%);
+  --tw-prose-bold: hsl(220 15% 10%);
+  --tw-prose-counters: hsl(220 9% 46%);
+  --tw-prose-bullets: hsl(220 9% 60%);
+  --tw-prose-hr: hsl(220 13% 91%);
+  --tw-prose-quotes: hsl(220 15% 16%);
+  --tw-prose-quote-borders: hsl(220 13% 85%);
+  --tw-prose-code: hsl(220 15% 16%);
+  --tw-prose-pre-code: hsl(220 15% 16%);
+  --tw-prose-pre-bg: hsl(220 14% 96%);
+}
+
+/* Light theme video container - keep black for video player area */
+.theme-light .video-container {
+  background: hsl(220 15% 10%);
+}
+
+/* Light theme textarea and input focus */
+.theme-light textarea,
+.theme-light input {
+  color: hsl(220 15% 16%);
+}
+
+.theme-light textarea::placeholder,
+.theme-light input::placeholder {
+  color: hsl(220 9% 60%);
+}
+
+/* Breathe animation for audio player */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 0.2; }
+}
+
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
 }

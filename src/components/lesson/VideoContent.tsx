@@ -17,6 +17,8 @@ interface VideoContentProps {
 }
 
 export function VideoContent({ contentBlocks, translations: t }: VideoContentProps) {
+  const videoWrap = "relative w-full video-container rounded-lg overflow-hidden";
+
   // Priority 1: "video" block (new - upload or link)
   const videoBlock = contentBlocks.find((b) => b.block_type === "video" && (b.file_url || b.content));
 
@@ -24,7 +26,7 @@ export function VideoContent({ contentBlocks, translations: t }: VideoContentPro
     // Uploaded video file (R2 or Supabase Storage)
     if (videoBlock.file_url) {
       return (
-        <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+        <div className={videoWrap} style={{ aspectRatio: "16/9", background: "#0a0a0b" }}>
           <video
             src={videoBlock.file_url}
             controls
@@ -43,7 +45,7 @@ export function VideoContent({ contentBlocks, translations: t }: VideoContentPro
 
       if (parsed.type === "gdrive") {
         return (
-          <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+          <div className={videoWrap} style={{ aspectRatio: "16/9", background: "#0a0a0b" }}>
             <iframe
               src={parsed.src}
               className="w-full h-full"
@@ -57,7 +59,7 @@ export function VideoContent({ contentBlocks, translations: t }: VideoContentPro
 
       if (parsed.type === "direct" || parsed.type === "dropbox") {
         return (
-          <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+          <div className={videoWrap} style={{ aspectRatio: "16/9", background: "#0a0a0b" }}>
             <video
               src={parsed.src}
               controls
@@ -73,7 +75,7 @@ export function VideoContent({ contentBlocks, translations: t }: VideoContentPro
       // Embed fallback (generic iframe)
       if (parsed.src) {
         return (
-          <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+          <div className={videoWrap} style={{ aspectRatio: "16/9", background: "#0a0a0b" }}>
             <iframe
               src={parsed.src}
               className="w-full h-full"
@@ -93,7 +95,8 @@ export function VideoContent({ contentBlocks, translations: t }: VideoContentPro
   if (embedBlock) {
     return (
       <div
-        className="relative w-full bg-black"
+        className="relative w-full"
+        style={{ background: "#0a0a0b" }}
         dangerouslySetInnerHTML={{ __html: embedBlock.content! }}
       />
     );
@@ -101,8 +104,8 @@ export function VideoContent({ contentBlocks, translations: t }: VideoContentPro
 
   // Placeholder
   return (
-    <div className="relative w-full bg-black" style={{ aspectRatio: "16/9" }}>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-white/60">
+    <div className="relative w-full bg-muted" style={{ aspectRatio: "16/9" }}>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
         <PlayCircle className="h-16 w-16 mb-3" />
         <p className="text-sm">{t.videoPlaceholder}</p>
       </div>

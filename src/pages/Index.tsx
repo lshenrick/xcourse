@@ -191,7 +191,7 @@ const Index = () => {
 
       <div className="flex flex-1 overflow-hidden">
         {sidebarOpen && (
-          <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed inset-0 z-30 bg-foreground/40 lg:hidden" onClick={() => setSidebarOpen(false)} />
         )}
 
         <main className="flex-1 overflow-y-auto pb-14 lg:pb-0">
