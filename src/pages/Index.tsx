@@ -33,24 +33,11 @@ const Index = () => {
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   const [userName, setUserName] = useState("");
 
-  // Resolve area context
+  // Resolve area context - always check database for settings (theme, etc.)
   useEffect(() => {
     const slug = langSlug || "";
     const lang = getLanguageBySlug(slug);
-    if (lang) {
-      setArea({
-        slug: lang.slug,
-        title: `${lang.mestraTitle} ${lang.mestraName}`,
-        langCode: lang.code,
-        supportEmail: "contact@everwynventures.com",
-        customLabels: null,
-        theme: "dark",
-      });
-      setAreaLoading(false);
-      return;
-    }
 
-    // Try database
     supabase
       .from("member_areas")
       .select("slug, title, lang_code, support_email, custom_labels, theme")
@@ -62,10 +49,19 @@ const Index = () => {
           setArea({
             slug: data.slug,
             title: data.title,
-            langCode: (data.lang_code || "pt") as LanguageCode,
+            langCode: (data.lang_code || lang?.code || "pt") as LanguageCode,
             supportEmail: data.support_email || "contact@everwynventures.com",
             customLabels: (data as any).custom_labels || null,
             theme: (data as any).theme || "dark",
+          });
+        } else if (lang) {
+          setArea({
+            slug: lang.slug,
+            title: `${lang.mestraTitle} ${lang.mestraName}`,
+            langCode: lang.code,
+            supportEmail: "contact@everwynventures.com",
+            customLabels: null,
+            theme: "dark",
           });
         }
         setAreaLoading(false);

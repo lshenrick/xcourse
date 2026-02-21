@@ -44,24 +44,9 @@ const Login = () => {
 
   useEffect(() => {
     const slug = langSlug || "";
-
-    // Try known language first
     const lang = getLanguageBySlug(slug);
-    if (lang) {
-      setAreaInfo({
-        slug: lang.slug,
-        title: `${lang.mestraTitle} ${lang.mestraName}`,
-        subtitle: lang.courseName,
-        langCode: lang.code,
-        supportEmail: "contact@everwynventures.com",
-        requireAuth: true,
-        theme: "dark",
-      });
-      setChecking(false);
-      return;
-    }
 
-    // Try database member_areas
+    // Always check database for area settings (theme, require_auth, etc.)
     supabase
       .from("member_areas")
       .select("slug, title, subtitle, lang_code, support_email, require_auth, theme")
@@ -74,10 +59,21 @@ const Login = () => {
             slug: data.slug,
             title: data.title,
             subtitle: data.subtitle,
-            langCode: (data.lang_code || "pt") as LanguageCode,
+            langCode: (data.lang_code || lang?.code || "pt") as LanguageCode,
             supportEmail: data.support_email || "contact@everwynventures.com",
             requireAuth: data.require_auth !== false,
             theme: data.theme || "dark",
+          });
+        } else if (lang) {
+          // Fallback to hardcoded language data
+          setAreaInfo({
+            slug: lang.slug,
+            title: `${lang.mestraTitle} ${lang.mestraName}`,
+            subtitle: lang.courseName,
+            langCode: lang.code,
+            supportEmail: "contact@everwynventures.com",
+            requireAuth: true,
+            theme: "dark",
           });
         } else {
           setNotFound(true);
