@@ -1,6 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { StarRating } from "@/components/StarRating";
 import { LessonCompleteButton } from "@/components/LessonCompleteButton";
 import { CommentSection } from "@/components/CommentSection";
 import { ContentBlocks } from "./ContentBlocks";
@@ -39,9 +38,10 @@ export function LessonFooter({
   // Exclude block types already rendered by the main content component
   const excludeTypes = ["embed", "audio", "video"];
   if (lessonType === "ebook") excludeTypes.push("file");
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 md:px-6 md:py-8 space-y-6">
-      {/* Lesson title + module */}
+      {/* Title + actions bar */}
       <div>
         <p className="text-xs text-muted-foreground mb-1.5 tracking-wide">
           {moduleEmoji} {moduleTitle}
@@ -51,26 +51,21 @@ export function LessonFooter({
         </h1>
       </div>
 
-      {/* Actions row — rating + complete button */}
+      {/* Nav + complete — single row */}
       <div className="flex items-center justify-between">
-        <StarRating lessonId={lessonId} label={t.yourRating} language={language} />
-        <LessonCompleteButton lessonId={lessonId} translations={t} onToggle={onLessonComplete} language={language} />
-      </div>
-
-      {/* Content blocks (text, files) */}
-      <ContentBlocks blocks={contentBlocks} excludeTypes={excludeTypes} />
-
-      {/* Navigation */}
-      <div className="flex items-center justify-between pt-2">
-        <Button variant="ghost" size="sm" disabled={!prevLesson} onClick={() => prevLesson && onSelectLesson(prevLesson.id)} className="gap-1.5 text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="sm" disabled={!prevLesson} onClick={() => prevLesson && onSelectLesson(prevLesson.id)} className="gap-1.5 text-muted-foreground hover:text-foreground px-2">
           <ChevronLeft className="h-4 w-4" />
           <span className="hidden sm:inline">{t.previousLesson}</span>
         </Button>
-        <Button variant="ghost" size="sm" disabled={!nextLesson} onClick={() => nextLesson && onSelectLesson(nextLesson.id)} className="gap-1.5 text-muted-foreground hover:text-foreground">
+        <LessonCompleteButton lessonId={lessonId} translations={t} onToggle={onLessonComplete} language={language} />
+        <Button variant="ghost" size="sm" disabled={!nextLesson} onClick={() => nextLesson && onSelectLesson(nextLesson.id)} className="gap-1.5 text-muted-foreground hover:text-foreground px-2">
           <span className="hidden sm:inline">{t.nextLesson}</span>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Content blocks (text, files) */}
+      <ContentBlocks blocks={contentBlocks} excludeTypes={excludeTypes} />
 
       {/* Comments */}
       <CommentSection lessonId={lessonId} translations={t} language={language} />
