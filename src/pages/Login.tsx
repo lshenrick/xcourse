@@ -82,6 +82,18 @@ const Login = () => {
       });
   }, [langSlug]);
 
+  // Apply theme class to <html> so body and all elements inherit light theme variables
+  useEffect(() => {
+    if (areaInfo?.theme === "light") {
+      document.documentElement.classList.add("theme-light");
+    } else {
+      document.documentElement.classList.remove("theme-light");
+    }
+    return () => {
+      document.documentElement.classList.remove("theme-light");
+    };
+  }, [areaInfo?.theme]);
+
   if (checking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
