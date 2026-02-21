@@ -158,144 +158,151 @@ export function CommentSection({ lessonId, translations: t, language }: CommentS
   return (
     <div className="mt-8 pt-6 border-t border-border">
       {/* Section header */}
-      <div className="flex items-center gap-2 mb-4">
-        <MessageCircle className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">{t.comments}</h3>
+      <div className="flex items-center gap-2 mb-5">
+        <MessageCircle className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-bold text-foreground tracking-wide">{t.comments}</h3>
         {comments.length > 0 && (
-          <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">{comments.length}</span>
+          <span className="text-[10px] font-semibold text-primary-foreground bg-primary rounded-full px-2 py-0.5 leading-none">{comments.length}</span>
         )}
       </div>
 
-      {/* New comment input */}
-      <div className="flex gap-3 mb-6">
-        <div className="flex-1">
-          <Textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder={t.commentPlaceholder}
-            className="min-h-[72px] text-sm resize-none rounded-xl border-border bg-card"
-          />
-        </div>
-        <Button
-          size="sm"
+      {/* New comment input - button inside */}
+      <div className="relative mb-6">
+        <Textarea
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          placeholder={t.commentPlaceholder}
+          className="min-h-[80px] pr-14 text-sm resize-none rounded-2xl border-border/80 bg-secondary/50 focus:bg-card transition-colors"
+        />
+        <button
           onClick={handleSendComment}
           disabled={!newComment.trim() || sending}
-          className="shrink-0 self-end h-9 px-4 rounded-lg gap-2"
+          className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-md"
         >
-          <Send className="h-3.5 w-3.5" />
-        </Button>
+          <Send className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Comments list */}
-      <div className="space-y-4">
+      <div className="space-y-5">
         {comments.map((comment) => (
-          <div key={comment.id} className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
-            {/* Comment header */}
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="text-xs font-semibold text-primary">{(comment.profile_name || "A")[0].toUpperCase()}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-foreground">{comment.profile_name}</span>
+          <div key={comment.id} className="group">
+            {/* Comment header row */}
+            <div className="flex items-start gap-3">
+              {/* Avatar */}
+              <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-primary">{(comment.profile_name || "A")[0].toUpperCase()}</span>
+              </div>
+
+              {/* Content area */}
+              <div className="flex-1 min-w-0">
+                {/* Name + date + actions */}
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-foreground">{comment.profile_name}</span>
                   <span className="text-xs text-muted-foreground">{formatDate(comment.created_at)}</span>
-                </div>
-              </div>
-              {canModify(comment.user_id) && (
-                <div className="flex items-center gap-0.5">
-                  <button onClick={() => { setEditingComment(comment.id); setEditText(comment.content); }} className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md hover:bg-muted" title={t.editComment}>
-                    <Pencil className="h-3 w-3" />
-                  </button>
-                  {confirmDeleteComment === comment.id ? (
-                    <div className="flex items-center gap-1 ml-1">
-                      <span className="text-xs text-destructive font-medium">{t.confirmDelete}</span>
-                      <button onClick={() => handleDeleteComment(comment.id)} className="text-destructive hover:text-destructive/80 p-1 rounded-md hover:bg-destructive/10"><Check className="h-3 w-3" /></button>
-                      <button onClick={() => setConfirmDeleteComment(null)} className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"><X className="h-3 w-3" /></button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setConfirmDeleteComment(comment.id)} className="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-md hover:bg-muted" title={t.deleteComment}>
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Comment content */}
-            {editingComment === comment.id ? (
-              <div className="flex gap-2 mb-3 pl-9">
-                <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} className="min-h-[40px] text-sm resize-none rounded-lg" />
-                <div className="flex flex-col gap-1 shrink-0">
-                  <Button size="sm" onClick={() => handleEditComment(comment.id)} disabled={!editText.trim()} className="h-8"><Check className="h-3 w-3" /></Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditingComment(null)} className="h-8"><X className="h-3 w-3" /></Button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-foreground mb-3 leading-relaxed pl-9">{comment.content}</p>
-            )}
-
-            {/* Comment actions */}
-            <div className="flex items-center gap-4 pl-9">
-              <button onClick={() => handleLike(comment.id, comment.user_liked)} className={`flex items-center gap-1.5 text-xs transition-colors ${comment.user_liked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}>
-                <Heart className={`h-3.5 w-3.5 ${comment.user_liked ? "fill-current" : ""}`} />
-                {comment.likes_count > 0 && <span>{comment.likes_count}</span>}
-              </button>
-              <button onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <MessageCircle className="h-3.5 w-3.5" />
-                {t.reply}
-              </button>
-            </div>
-
-            {/* Replies */}
-            {comment.replies.length > 0 && (
-              <div className="mt-3 ml-9 space-y-3 border-l-2 border-primary/20 pl-4">
-                {comment.replies.map((reply) => (
-                  <div key={reply.id} className="py-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
-                          <span className="text-[10px] font-semibold text-muted-foreground">{(reply.profile_name || "A")[0].toUpperCase()}</span>
+                  {canModify(comment.user_id) && (
+                    <div className="flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => { setEditingComment(comment.id); setEditText(comment.content); }} className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted" title={t.editComment}>
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      {confirmDeleteComment === comment.id ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-destructive">{t.confirmDelete}</span>
+                          <button onClick={() => handleDeleteComment(comment.id)} className="text-destructive p-1 rounded hover:bg-destructive/10"><Check className="h-3 w-3" /></button>
+                          <button onClick={() => setConfirmDeleteComment(null)} className="text-muted-foreground p-1 rounded hover:bg-muted"><X className="h-3 w-3" /></button>
                         </div>
-                        <span className="text-xs font-semibold text-foreground">{reply.profile_name}</span>
-                        <span className="text-xs text-muted-foreground">{formatDate(reply.created_at)}</span>
-                      </div>
-                      {canModify(reply.user_id) && (
-                        <div className="flex items-center gap-0.5">
-                          <button onClick={() => { setEditingReply(reply.id); setEditReplyText(reply.content); }} className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"><Pencil className="h-2.5 w-2.5" /></button>
-                          {confirmDeleteReply === reply.id ? (
-                            <div className="flex items-center gap-1">
-                              <button onClick={() => handleDeleteReply(reply.id)} className="text-destructive p-1 rounded-md hover:bg-destructive/10"><Check className="h-2.5 w-2.5" /></button>
-                              <button onClick={() => setConfirmDeleteReply(null)} className="text-muted-foreground p-1 rounded-md hover:bg-muted"><X className="h-2.5 w-2.5" /></button>
-                            </div>
-                          ) : (
-                            <button onClick={() => setConfirmDeleteReply(reply.id)} className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded-md hover:bg-muted"><Trash2 className="h-2.5 w-2.5" /></button>
-                          )}
-                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteComment(comment.id)} className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded hover:bg-muted" title={t.deleteComment}>
+                          <Trash2 className="h-3 w-3" />
+                        </button>
                       )}
                     </div>
-                    {editingReply === reply.id ? (
-                      <div className="flex gap-1 ml-7">
-                        <Textarea value={editReplyText} onChange={(e) => setEditReplyText(e.target.value)} className="min-h-[30px] text-xs resize-none rounded-lg" />
-                        <Button size="sm" variant="outline" onClick={() => handleEditReply(reply.id)} className="text-xs shrink-0 h-7"><Check className="h-2.5 w-2.5" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingReply(null)} className="text-xs shrink-0 h-7"><X className="h-2.5 w-2.5" /></Button>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-foreground ml-7 leading-relaxed">{reply.content}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                  )}
+                </div>
 
-            {/* Reply input */}
-            {replyingTo === comment.id && (
-              <div className="mt-3 ml-9 flex gap-2">
-                <Textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder={t.replyPlaceholder} className="min-h-[40px] text-xs resize-none rounded-lg" />
-                <Button size="sm" variant="outline" onClick={() => handleSendReply(comment.id)} disabled={!replyText.trim() || sending} className="shrink-0 self-end text-xs h-8 rounded-lg">
-                  <Send className="h-3 w-3" />
-                </Button>
+                {/* Comment text */}
+                {editingComment === comment.id ? (
+                  <div className="flex gap-2 mb-2">
+                    <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} className="min-h-[40px] text-sm resize-none rounded-lg" />
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Button size="sm" onClick={() => handleEditComment(comment.id)} disabled={!editText.trim()} className="h-7 w-7 p-0"><Check className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingComment(null)} className="h-7 w-7 p-0"><X className="h-3 w-3" /></Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-foreground/90 leading-relaxed mb-2">{comment.content}</p>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center gap-4">
+                  <button onClick={() => handleLike(comment.id, comment.user_liked)} className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${comment.user_liked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}>
+                    <Heart className={`h-3.5 w-3.5 ${comment.user_liked ? "fill-current" : ""}`} />
+                    {comment.likes_count > 0 && <span>{comment.likes_count}</span>}
+                  </button>
+                  <button onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    {t.reply}
+                  </button>
+                </div>
+
+                {/* Replies */}
+                {comment.replies.length > 0 && (
+                  <div className="mt-3 space-y-3 border-l-2 border-primary/20 pl-4">
+                    {comment.replies.map((reply) => (
+                      <div key={reply.id} className="group/reply">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center shrink-0 mt-0.5">
+                            <span className="text-[10px] font-bold text-muted-foreground">{(reply.profile_name || "A")[0].toUpperCase()}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-xs font-semibold text-foreground">{reply.profile_name}</span>
+                              <span className="text-xs text-muted-foreground">{formatDate(reply.created_at)}</span>
+                              {canModify(reply.user_id) && (
+                                <div className="flex items-center gap-0.5 ml-auto opacity-0 group-hover/reply:opacity-100 transition-opacity">
+                                  <button onClick={() => { setEditingReply(reply.id); setEditReplyText(reply.content); }} className="text-muted-foreground hover:text-foreground p-0.5 rounded"><Pencil className="h-2.5 w-2.5" /></button>
+                                  {confirmDeleteReply === reply.id ? (
+                                    <>
+                                      <button onClick={() => handleDeleteReply(reply.id)} className="text-destructive p-0.5 rounded"><Check className="h-2.5 w-2.5" /></button>
+                                      <button onClick={() => setConfirmDeleteReply(null)} className="text-muted-foreground p-0.5 rounded"><X className="h-2.5 w-2.5" /></button>
+                                    </>
+                                  ) : (
+                                    <button onClick={() => setConfirmDeleteReply(reply.id)} className="text-muted-foreground hover:text-destructive p-0.5 rounded"><Trash2 className="h-2.5 w-2.5" /></button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {editingReply === reply.id ? (
+                              <div className="flex gap-1">
+                                <Textarea value={editReplyText} onChange={(e) => setEditReplyText(e.target.value)} className="min-h-[30px] text-xs resize-none rounded-lg" />
+                                <Button size="sm" variant="outline" onClick={() => handleEditReply(reply.id)} className="text-xs shrink-0 h-7 w-7 p-0"><Check className="h-2.5 w-2.5" /></Button>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingReply(null)} className="text-xs shrink-0 h-7 w-7 p-0"><X className="h-2.5 w-2.5" /></Button>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-foreground/80 leading-relaxed">{reply.content}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Reply input */}
+                {replyingTo === comment.id && (
+                  <div className="mt-3 relative">
+                    <Textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder={t.replyPlaceholder} className="min-h-[44px] pr-12 text-xs resize-none rounded-xl bg-secondary/50" />
+                    <button
+                      onClick={() => handleSendReply(comment.id)}
+                      disabled={!replyText.trim() || sending}
+                      className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <Send className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         ))}
       </div>
