@@ -93,6 +93,7 @@ export function LessonViewer({
         moduleEmoji={current.module.emoji}
         moduleTitle={current.module.title}
         lessonTitle={current.title}
+        lessonType={current.type}
         contentBlocks={contentBlocks}
         translations={translations}
         language={language}

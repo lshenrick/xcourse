@@ -20,6 +20,7 @@ interface LessonFooterProps {
   moduleEmoji: string;
   moduleTitle: string;
   lessonTitle: string;
+  lessonType?: string;
   contentBlocks: ContentBlock[];
   translations: UITranslations;
   language: LanguageCode;
@@ -31,10 +32,13 @@ interface LessonFooterProps {
 }
 
 export function LessonFooter({
-  lessonId, moduleEmoji, moduleTitle, lessonTitle,
+  lessonId, moduleEmoji, moduleTitle, lessonTitle, lessonType,
   contentBlocks, translations: t, language,
   onLessonComplete, prevLesson, nextLesson, onSelectLesson, supportEmail,
 }: LessonFooterProps) {
+  // Exclude block types already rendered by the main content component
+  const excludeTypes = ["embed", "audio", "video"];
+  if (lessonType === "ebook") excludeTypes.push("file");
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 md:px-6 md:py-8 space-y-6">
       {/* Lesson title + module */}
@@ -54,7 +58,7 @@ export function LessonFooter({
       </div>
 
       {/* Content blocks (text, files) */}
-      <ContentBlocks blocks={contentBlocks} />
+      <ContentBlocks blocks={contentBlocks} excludeTypes={excludeTypes} />
 
       {/* Navigation */}
       <div className="flex items-center justify-between pt-2">
