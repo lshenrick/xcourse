@@ -166,18 +166,20 @@ export function CommentSection({ lessonId, translations: t, language }: CommentS
         )}
       </div>
 
-      {/* New comment input - button inside */}
-      <div className="relative mb-6">
-        <Textarea
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder={t.commentPlaceholder}
-          className="min-h-[80px] pr-14 text-sm resize-none rounded-2xl border-border/80 bg-secondary/50 focus:bg-card transition-colors"
-        />
+      {/* New comment input - button inside, vertically centered */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex-1">
+          <Textarea
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder={t.commentPlaceholder}
+            className="min-h-[52px] text-sm resize-none rounded-2xl border-border/80 bg-secondary/50 focus:bg-card transition-colors"
+          />
+        </div>
         <button
           onClick={handleSendComment}
           disabled={!newComment.trim() || sending}
-          className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-md"
+          className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0 hover:bg-primary/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-md"
         >
           <Send className="h-4 w-4" />
         </button>
