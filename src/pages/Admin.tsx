@@ -154,7 +154,7 @@ const AdminPanel = () => {
     if (!user) return;
     let query = supabaseAdmin.from("comments").select("*").eq("status", filter as "pending" | "approved" | "rejected").order("created_at", { ascending: false });
     if (langFilter !== "all") query = query.eq("language", langFilter);
-    else if (!isSuperAdmin && areaLabels.length > 0) {
+    else if (areaLabels.length > 0) {
       query = query.in("language", areaLabels.map((a) => a.slug));
     }
 
@@ -177,7 +177,7 @@ const AdminPanel = () => {
     if (!user) return;
     let query = supabaseAdmin.from("access_logs").select("*").order("accessed_at", { ascending: false }).limit(500);
     if (accessLangFilter !== "all") query = query.eq("language", accessLangFilter);
-    else if (!isSuperAdmin && areaLabels.length > 0) {
+    else if (areaLabels.length > 0) {
       query = query.in("language", areaLabels.map((a) => a.slug));
     }
     const { data } = await query;
@@ -252,7 +252,7 @@ const AdminPanel = () => {
   const fetchPendingCounts = async () => {
     if (!user) return;
     let query = supabaseAdmin.from("comments").select("language").eq("status", "pending");
-    if (!isSuperAdmin && areaLabels.length > 0) {
+    if (areaLabels.length > 0) {
       query = query.in("language", areaLabels.map((a) => a.slug));
     }
     const { data } = await query;
@@ -268,7 +268,7 @@ const AdminPanel = () => {
   const fetchDbModules = async () => {
     if (!user) return;
     let modQuery = supabaseAdmin.from("course_modules").select("id, title, emoji, language, position").order("position");
-    if (!isSuperAdmin && areaLabels.length > 0) {
+    if (areaLabels.length > 0) {
       modQuery = modQuery.in("language", areaLabels.map((a) => a.slug));
     }
     const { data: modules } = await modQuery;
@@ -280,10 +280,10 @@ const AdminPanel = () => {
     })));
   };
 
-  // Fetch member areas for dynamic filters (filtered by owner for non-super admins)
+  // Fetch member areas for dynamic filters (each admin sees only their own areas)
   const fetchAreaLabels = async () => {
     let query = supabaseAdmin.from("member_areas").select("slug, title, icon").eq("active", true).order("position");
-    if (!isSuperAdmin && user) query = query.eq("owner_id", user.id);
+    if (user) query = query.eq("owner_id", user.id);
     const { data } = await query;
     setAreaLabels((data || []) as AreaLabel[]);
   };

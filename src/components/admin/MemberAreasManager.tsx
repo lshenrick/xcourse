@@ -61,7 +61,7 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
       .from("member_areas")
       .select("*")
       .order("position");
-    if (!isSuperAdmin) query = query.eq("owner_id", adminUserId);
+    query = query.eq("owner_id", adminUserId);
     const { data } = await query;
     setAreas((data as MemberArea[]) || []);
     setLoading(false);

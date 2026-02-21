@@ -73,7 +73,7 @@ export function CourseContentManager({ adminUserId, isSuperAdmin }: CourseConten
         .select("slug, title, icon")
         .eq("active", true)
         .order("position");
-      if (!isSuperAdmin) query = query.eq("owner_id", adminUserId);
+      query = query.eq("owner_id", adminUserId);
       const { data } = await query;
       const list = (data || []) as AreaOption[];
       setAreas(list);
