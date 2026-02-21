@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { createClient } from "@supabase/supabase-js";
-import { buildEmailHtml, getEmailI18n } from "./email-i18n";
+import { buildEmailHtml, getEmailI18n } from "./_email-i18n";
 
 interface VercelRequest extends IncomingMessage {
   body: any;
