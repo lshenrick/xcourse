@@ -36,37 +36,44 @@ export function LessonFooter({
   onLessonComplete, prevLesson, nextLesson, onSelectLesson, supportEmail,
 }: LessonFooterProps) {
   return (
-    <div className="p-4 md:p-6">
-      <p className="text-xs text-muted-foreground mb-1">
-        {moduleEmoji} {moduleTitle}
-      </p>
-      <h1 className="text-xl md:text-2xl font-bold text-foreground">
-        {lessonTitle}
-      </h1>
+    <div className="max-w-3xl mx-auto px-4 py-6 md:px-6 md:py-8 space-y-6">
+      {/* Lesson title + module */}
+      <div>
+        <p className="text-xs text-muted-foreground mb-1.5 tracking-wide">
+          {moduleEmoji} {moduleTitle}
+        </p>
+        <h1 className="text-xl md:text-2xl font-serif font-bold text-foreground leading-tight">
+          {lessonTitle}
+        </h1>
+      </div>
 
-      <div className="flex items-center gap-3 mt-3 flex-wrap">
+      {/* Actions row — rating + complete button */}
+      <div className="flex items-center justify-between">
         <StarRating lessonId={lessonId} label={t.yourRating} language={language} />
         <LessonCompleteButton lessonId={lessonId} translations={t} onToggle={onLessonComplete} language={language} />
       </div>
 
-      <div className="flex items-center justify-between mt-4 gap-3">
-        <Button variant="outline" size="sm" disabled={!prevLesson} onClick={() => prevLesson && onSelectLesson(prevLesson.id)}>
+      {/* Content blocks (text, files) */}
+      <ContentBlocks blocks={contentBlocks} />
+
+      {/* Navigation */}
+      <div className="flex items-center justify-between pt-2">
+        <Button variant="ghost" size="sm" disabled={!prevLesson} onClick={() => prevLesson && onSelectLesson(prevLesson.id)} className="gap-1.5 text-muted-foreground hover:text-foreground">
           <ChevronLeft className="h-4 w-4" />
-          {t.previousLesson}
+          <span className="hidden sm:inline">{t.previousLesson}</span>
         </Button>
-        <Button variant="outline" size="sm" disabled={!nextLesson} onClick={() => nextLesson && onSelectLesson(nextLesson.id)}>
-          {t.nextLesson}
+        <Button variant="ghost" size="sm" disabled={!nextLesson} onClick={() => nextLesson && onSelectLesson(nextLesson.id)} className="gap-1.5 text-muted-foreground hover:text-foreground">
+          <span className="hidden sm:inline">{t.nextLesson}</span>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
 
-      <ContentBlocks blocks={contentBlocks} />
-
+      {/* Comments */}
       <CommentSection lessonId={lessonId} translations={t} language={language} />
 
-      <div className="mt-6 pt-4 border-t border-border text-center pb-16 lg:pb-0">
-        <p className="text-xs text-muted-foreground">{t.supportText}</p>
-        <p className="text-xs font-medium text-primary">{supportEmail || t.supportLabel}</p>
+      {/* Support footer */}
+      <div className="pt-4 border-t border-border text-center pb-16 lg:pb-0">
+        <p className="text-xs text-muted-foreground">{t.supportText} <span className="font-medium text-primary">{supportEmail || t.supportLabel}</span></p>
       </div>
     </div>
   );

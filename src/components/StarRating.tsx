@@ -55,7 +55,7 @@ export function StarRating({ lessonId, label, language }: StarRatingProps) {
   if (!user) return null;
 
   return (
-    <div className="flex items-center gap-2 mt-3">
+    <div className="flex items-center gap-2">
       <span className="text-xs text-muted-foreground">{label}</span>
       <div className="flex gap-0.5">
         {[1, 2, 3, 4, 5].map((star) => (
