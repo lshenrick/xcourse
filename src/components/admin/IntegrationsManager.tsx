@@ -16,7 +16,36 @@ interface AreaOption {
   slug: string;
   title: string;
   icon: string;
+  lang_code?: string;
 }
+
+// Email defaults per language (mirrors api/email-i18n.ts)
+const emailDefaults: Record<string, { subject: string; body: string }> = {
+  pt: {
+    subject: "Seu acesso ao curso está liberado!",
+    body: 'Olá {name},<br><br>Seu acesso ao curso <strong>{course_name}</strong> está liberado!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Acessar Curso</a><br><br>Use o email <strong>{email}</strong> para fazer login.<br><br>Bons estudos!',
+  },
+  en: {
+    subject: "Your course access is ready!",
+    body: 'Hi {name},<br><br>Your access to <strong>{course_name}</strong> is now available!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Access Course</a><br><br>Use the email <strong>{email}</strong> to sign in.<br><br>Happy learning!',
+  },
+  es: {
+    subject: "¡Tu acceso al curso está listo!",
+    body: 'Hola {name},<br><br>¡Tu acceso a <strong>{course_name}</strong> está disponible!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Acceder al Curso</a><br><br>Usa el email <strong>{email}</strong> para iniciar sesión.<br><br>¡Buenos estudios!',
+  },
+  de: {
+    subject: "Dein Kurszugang ist freigeschaltet!",
+    body: 'Hallo {name},<br><br>Dein Zugang zu <strong>{course_name}</strong> ist jetzt verfügbar!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Kurs Zugreifen</a><br><br>Verwende die E-Mail <strong>{email}</strong> zum Anmelden.<br><br>Viel Erfolg beim Lernen!',
+  },
+  fr: {
+    subject: "Votre accès au cours est prêt !",
+    body: 'Bonjour {name},<br><br>Votre accès à <strong>{course_name}</strong> est maintenant disponible !<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Accéder au Cours</a><br><br>Utilisez l\'email <strong>{email}</strong> pour vous connecter.<br><br>Bon apprentissage !',
+  },
+  it: {
+    subject: "Il tuo accesso al corso è pronto!",
+    body: 'Ciao {name},<br><br>Il tuo accesso a <strong>{course_name}</strong> è ora disponibile!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Accedi al Corso</a><br><br>Usa l\'email <strong>{email}</strong> per accedere.<br><br>Buono studio!',
+  },
+};
 
 interface IntegrationSetting {
   id: string;
@@ -80,8 +109,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   const [showHottok, setShowHottok] = useState(false);
   // Resend API Key agora é global (env var RESEND_API_KEY)
   const [emailFrom, setEmailFrom] = useState("noreply@xmembers.app");
-  const [emailSubject, setEmailSubject] = useState("Seu acesso ao curso está liberado!");
-  const [emailBody, setEmailBody] = useState('Olá {name},<br><br>Seu acesso ao curso <strong>{course_name}</strong> está liberado!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Acessar Curso</a><br><br>Use o email <strong>{email}</strong> para fazer login.<br><br>Bons estudos!');
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
   const [webhookEnabled, setWebhookEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
 
@@ -107,7 +136,7 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   // Fetch areas
   useEffect(() => {
     const fetchAreas = async () => {
-      let query = supabase.from("member_areas").select("slug, title, icon").eq("active", true).order("position");
+      let query = supabase.from("member_areas").select("slug, title, icon, lang_code").eq("active", true).order("position");
       query = query.eq("owner_id", adminUserId);
       const { data } = await query;
       const areaList = (data || []) as AreaOption[];
@@ -139,17 +168,22 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       const s = data as IntegrationSetting;
       setSettings(s);
       setHottok(s.hottok || "");
+      const areaLang = areas.find(a => a.slug === selectedArea)?.lang_code || "pt";
+      const defaults = emailDefaults[areaLang] || emailDefaults.pt;
       setEmailFrom(s.email_from || "noreply@xmembers.app");
-      setEmailSubject(s.email_subject_template || "");
-      setEmailBody(s.email_body_template || "");
+      setEmailSubject(s.email_subject_template || defaults.subject);
+      setEmailBody(s.email_body_template || defaults.body);
       setWebhookEnabled(s.webhook_enabled);
       setEmailEnabled(s.email_enabled);
     } else {
       setSettings(null);
       setHottok("");
       setEmailFrom("noreply@xmembers.app");
-      setEmailSubject("Seu acesso ao curso está liberado!");
-      setEmailBody('Olá {name},<br><br>Seu acesso ao curso <strong>{course_name}</strong> está liberado!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Acessar Curso</a><br><br>Use o email <strong>{email}</strong> para fazer login.<br><br>Bons estudos!');
+      // Use language-specific defaults
+      const areaLang = areas.find(a => a.slug === selectedArea)?.lang_code || "pt";
+      const defaults = emailDefaults[areaLang] || emailDefaults.pt;
+      setEmailSubject(defaults.subject);
+      setEmailBody(defaults.body);
       setWebhookEnabled(true);
       setEmailEnabled(true);
     }

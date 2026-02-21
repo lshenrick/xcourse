@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { createClient } from "@supabase/supabase-js";
+import { buildEmailHtml, getEmailI18n } from "./email-i18n";
 
 interface VercelRequest extends IncomingMessage {
   body: any;
@@ -20,7 +21,7 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-// Resend email sending (same as hotmart webhook)
+// Resend email sending
 async function sendEmail(
   resendApiKey: string,
   from: string,
@@ -41,42 +42,6 @@ async function sendEmail(
     throw new Error(`Resend error: ${err}`);
   }
   return res.json();
-}
-
-// Build email HTML from template (same as hotmart webhook)
-function buildEmailHtml(
-  template: string,
-  vars: Record<string, string>
-): string {
-  let html = template;
-  for (const [key, value] of Object.entries(vars)) {
-    html = html.replace(new RegExp(`\\{${key}\\}`, "g"), value);
-  }
-
-  const courseName = vars.course_name || "";
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:linear-gradient(180deg,#f5f3ff 0%,#f4f4f5 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:580px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-    <div style="background:linear-gradient(135deg,#18181b 0%,#27272a 100%);padding:40px 32px;text-align:center;">
-      <div style="width:64px;height:64px;background:rgba(124,58,237,0.15);border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
-        <span style="font-size:32px;line-height:64px;">🎉</span>
-      </div>
-      <h1 style="color:#ffffff;font-size:24px;margin:0 0 8px;font-weight:700;">Acesso Liberado!</h1>
-      <p style="color:#a1a1aa;font-size:14px;margin:0;">${courseName}</p>
-    </div>
-    <div style="padding:36px 32px;color:#27272a;font-size:15px;line-height:1.7;">
-      ${html}
-    </div>
-    <div style="padding:20px 32px;background:#fafafa;border-top:1px solid #e4e4e7;text-align:center;">
-      <p style="color:#a1a1aa;font-size:12px;margin:0;">Este email foi enviado automaticamente. Não é necessário responder.</p>
-      <p style="color:#d4d4d8;font-size:11px;margin:8px 0 0;">Powered by xmembers.app</p>
-    </div>
-  </div>
-</body>
-</html>`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -130,10 +95,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq("area_slug", area_slug)
       .maybeSingle();
 
-    // Get area info
+    // Get area info (including language)
     const { data: areaInfo } = await supabase
       .from("member_areas")
-      .select("title, slug")
+      .select("title, slug, lang_code")
       .eq("slug", area_slug)
       .single();
 
@@ -142,27 +107,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const courseName = areaInfo.title || area_slug;
+    const lang = (areaInfo as any)?.lang_code || "pt";
+    const emailI18n = getEmailI18n(lang);
     const host = req.headers["x-forwarded-host"] || req.headers.host || "xmembers.app";
     const proto = req.headers["x-forwarded-proto"] || "https";
     const accessLink = `${proto}://${host}/${area_slug}`;
 
-    // Build subject from template
-    const subjectTemplate = settings?.email_subject_template || "Seu acesso ao curso está liberado!";
+    // Build subject from template (fallback to language-specific default)
+    const subjectTemplate = settings?.email_subject_template || emailI18n.defaultSubject;
     const subject = subjectTemplate
       .replace(/\{name\}/g, name || "")
       .replace(/\{course_name\}/g, courseName)
       .replace(/\{email\}/g, email);
 
-    // Build body from template
-    const bodyTemplate = settings?.email_body_template ||
-      'Olá {name},<br><br>Seu acesso ao curso <strong>{course_name}</strong> está liberado!<br><br><a href="{access_link}" style="display:inline-block;padding:12px 24px;background:#18181b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Acessar Curso</a><br><br>Use o email <strong>{email}</strong> para fazer login.<br><br>Bons estudos!';
+    // Build body from template (fallback to language-specific default)
+    const bodyTemplate = settings?.email_body_template || emailI18n.defaultBody;
 
     const bodyHtml = buildEmailHtml(bodyTemplate, {
-      name: name || "Aluno(a)",
+      name: name || emailI18n.fallbackName,
       course_name: courseName,
       access_link: accessLink,
       email: email,
-    });
+    }, lang);
 
     const fromEmail = settings?.email_from || "noreply@xmembers.app";
 

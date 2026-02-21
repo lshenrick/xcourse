@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { createClient } from "@supabase/supabase-js";
+import { buildEmailHtml, getEmailI18n } from "../email-i18n";
 
 // Vercel serverless types (inline to avoid dependency)
 interface VercelRequest extends IncomingMessage {
@@ -44,42 +45,6 @@ async function sendEmail(
   return res.json();
 }
 
-// Build email HTML from template
-function buildEmailHtml(
-  template: string,
-  vars: Record<string, string>
-): string {
-  let html = template;
-  for (const [key, value] of Object.entries(vars)) {
-    html = html.replace(new RegExp(`\\{${key}\\}`, "g"), value);
-  }
-
-  // Wrap in styled HTML
-  const courseName = vars.course_name || "";
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:linear-gradient(180deg,#f5f3ff 0%,#f4f4f5 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:580px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-    <div style="background:linear-gradient(135deg,#18181b 0%,#27272a 100%);padding:40px 32px;text-align:center;">
-      <div style="width:64px;height:64px;background:rgba(124,58,237,0.15);border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
-        <span style="font-size:32px;line-height:64px;">🎉</span>
-      </div>
-      <h1 style="color:#ffffff;font-size:24px;margin:0 0 8px;font-weight:700;">Acesso Liberado!</h1>
-      <p style="color:#a1a1aa;font-size:14px;margin:0;">${courseName}</p>
-    </div>
-    <div style="padding:36px 32px;color:#27272a;font-size:15px;line-height:1.7;">
-      ${html}
-    </div>
-    <div style="padding:20px 32px;background:#fafafa;border-top:1px solid #e4e4e7;text-align:center;">
-      <p style="color:#a1a1aa;font-size:12px;margin:0;">Este email foi enviado automaticamente. Não é necessário responder.</p>
-      <p style="color:#d4d4d8;font-size:11px;margin:8px 0 0;">Powered by xmembers.app</p>
-    </div>
-  </div>
-</body>
-</html>`;
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only accept POST
@@ -215,29 +180,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Send welcome email if enabled (uses global RESEND_API_KEY)
         if (settings?.email_enabled && RESEND_API_KEY) {
           try {
-            // Get area info for email
+            // Get area info for email (including language)
             const { data: areaInfo } = await supabase
               .from("member_areas")
-              .select("title, slug")
+              .select("title, slug, lang_code")
               .eq("slug", areaSlug)
               .single();
 
             const courseName = areaInfo?.title || areaSlug;
+            const lang = (areaInfo as any)?.lang_code || "pt";
+            const emailI18n = getEmailI18n(lang);
             const accessLink = `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}/${areaSlug}`;
 
-            const subject = (settings.email_subject_template || "Seu acesso está liberado!")
+            const subject = (settings.email_subject_template || emailI18n.defaultSubject)
               .replace(/\{name\}/g, buyerName || "")
               .replace(/\{course_name\}/g, courseName)
               .replace(/\{email\}/g, buyerEmail);
 
             const bodyHtml = buildEmailHtml(
-              settings.email_body_template || "Olá {name}, seu acesso ao curso {course_name} está liberado!<br><br><a href=\"{access_link}\">Clique aqui para acessar</a>",
+              settings.email_body_template || emailI18n.defaultBody,
               {
-                name: buyerName || "Aluno(a)",
+                name: buyerName || emailI18n.fallbackName,
                 course_name: courseName,
                 access_link: accessLink,
                 email: buyerEmail,
-              }
+              },
+              lang
             );
 
             await sendEmail(
