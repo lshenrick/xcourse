@@ -41,27 +41,17 @@ export function LessonFooter({
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 md:px-6 md:py-8 space-y-6">
-      {/* Title + actions bar */}
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5 tracking-wide">
-          {moduleEmoji} {moduleTitle}
-        </p>
-        <h1 className="text-xl md:text-2xl font-serif font-bold text-foreground leading-tight">
-          {lessonTitle}
-        </h1>
-      </div>
-
-      {/* Nav + complete — single row */}
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" disabled={!prevLesson} onClick={() => prevLesson && onSelectLesson(prevLesson.id)} className="gap-1.5 text-muted-foreground hover:text-foreground px-2">
-          <ChevronLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">{t.previousLesson}</span>
-        </Button>
+      {/* Title + complete */}
+      <div className="space-y-4">
+        <div>
+          <p className="text-xs text-muted-foreground mb-1.5 tracking-wide">
+            {moduleEmoji} {moduleTitle}
+          </p>
+          <h1 className="text-xl md:text-2xl font-serif font-bold text-foreground leading-tight">
+            {lessonTitle}
+          </h1>
+        </div>
         <LessonCompleteButton lessonId={lessonId} translations={t} onToggle={onLessonComplete} language={language} />
-        <Button variant="ghost" size="sm" disabled={!nextLesson} onClick={() => nextLesson && onSelectLesson(nextLesson.id)} className="gap-1.5 text-muted-foreground hover:text-foreground px-2">
-          <span className="hidden sm:inline">{t.nextLesson}</span>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
       </div>
 
       {/* Content blocks (text, files) */}
@@ -70,8 +60,34 @@ export function LessonFooter({
       {/* Comments */}
       <CommentSection lessonId={lessonId} translations={t} language={language} />
 
+      {/* Navigation */}
+      <div className="pt-4 border-t border-border">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!prevLesson}
+            onClick={() => prevLesson && onSelectLesson(prevLesson.id)}
+            className="gap-1.5 text-muted-foreground hover:text-foreground px-3"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span>{t.previousLesson}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!nextLesson}
+            onClick={() => nextLesson && onSelectLesson(nextLesson.id)}
+            className="gap-1.5 text-muted-foreground hover:text-foreground px-3"
+          >
+            <span>{t.nextLesson}</span>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
       {/* Support footer */}
-      <div className="pt-4 border-t border-border text-center pb-16 lg:pb-0">
+      <div className="text-center pb-16 lg:pb-0">
         <p className="text-xs text-muted-foreground">{t.supportText} <span className="font-medium text-primary">{supportEmail || t.supportLabel}</span></p>
       </div>
     </div>
