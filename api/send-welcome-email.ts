@@ -100,14 +100,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Invalid token" });
   }
 
-  // Verify user is admin
-  const { data: profile } = await supabase
-    .from("profiles")
+  // Verify user is admin (roles are in user_roles table)
+  const { data: userRoles } = await supabase
+    .from("user_roles")
     .select("role")
-    .eq("id", userData.user.id)
-    .single();
+    .eq("user_id", userData.user.id);
 
-  if (!profile || (profile.role !== "admin" && profile.role !== "super_admin")) {
+  const roles = (userRoles || []).map((r: any) => r.role);
+  if (!roles.includes("admin") && !roles.includes("super_admin")) {
     return res.status(403).json({ error: "Forbidden - admin only" });
   }
 
