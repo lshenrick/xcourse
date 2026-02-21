@@ -27,6 +27,8 @@ interface AreaInfo {
   subtitle: string;
   langCode: LanguageCode;
   supportEmail: string;
+  requireAuth: boolean;
+  theme: string;
 }
 
 const Login = () => {
@@ -52,6 +54,8 @@ const Login = () => {
         subtitle: lang.courseName,
         langCode: lang.code,
         supportEmail: "contact@everwynventures.com",
+        requireAuth: true,
+        theme: "dark",
       });
       setChecking(false);
       return;
@@ -60,7 +64,7 @@ const Login = () => {
     // Try database member_areas
     supabase
       .from("member_areas")
-      .select("slug, title, subtitle, lang_code, support_email")
+      .select("slug, title, subtitle, lang_code, support_email, require_auth, theme")
       .eq("slug", slug)
       .eq("active", true)
       .single()
@@ -72,6 +76,8 @@ const Login = () => {
             subtitle: data.subtitle,
             langCode: (data.lang_code || "pt") as LanguageCode,
             supportEmail: data.support_email || "contact@everwynventures.com",
+            requireAuth: data.require_auth !== false,
+            theme: data.theme || "dark",
           });
         } else {
           setNotFound(true);
@@ -118,19 +124,21 @@ const Login = () => {
 
     const trimmedEmail = email.trim().toLowerCase();
 
-    // Check if buyer is authorized for this area
-    const { data: buyer } = await supabase
-      .from("authorized_buyers")
-      .select("id, status")
-      .eq("email", trimmedEmail)
-      .eq("area_slug", areaInfo.slug)
-      .eq("status", "active")
-      .maybeSingle();
+    // Check if buyer is authorized for this area (skip if auth is disabled)
+    if (areaInfo.requireAuth) {
+      const { data: buyer } = await supabase
+        .from("authorized_buyers")
+        .select("id, status")
+        .eq("email", trimmedEmail)
+        .eq("area_slug", areaInfo.slug)
+        .eq("status", "active")
+        .maybeSingle();
 
-    if (!buyer) {
-      toast.error(notAuthorizedMessages[areaInfo.langCode] || notAuthorizedMessages.pt);
-      setLoading(false);
-      return;
+      if (!buyer) {
+        toast.error(notAuthorizedMessages[areaInfo.langCode] || notAuthorizedMessages.pt);
+        setLoading(false);
+        return;
+      }
     }
 
     const { error: signInError } = await signIn(trimmedEmail, AUTO_PASSWORD);
@@ -160,7 +168,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
+    <div className={`min-h-screen flex flex-col items-center justify-center bg-background px-4 ${areaInfo.theme === "light" ? "theme-light" : ""}`}>
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-serif font-bold text-foreground tracking-tight">

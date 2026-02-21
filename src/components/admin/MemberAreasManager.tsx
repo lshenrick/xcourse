@@ -34,6 +34,8 @@ interface MemberArea {
   lang_code: string;
   support_email: string;
   custom_labels: Record<string, string> | null;
+  require_auth: boolean;
+  theme: string;
   active: boolean;
   position: number;
   owner_id: string | null;
@@ -100,7 +102,7 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
 
   const handleEdit = (area: MemberArea) => {
     setEditingId(area.id);
-    setEditForm({ slug: area.slug, title: area.title, subtitle: area.subtitle, icon: area.icon, button_text: area.button_text, lang_code: area.lang_code || "pt", support_email: area.support_email || "" });
+    setEditForm({ slug: area.slug, title: area.title, subtitle: area.subtitle, icon: area.icon, button_text: area.button_text, lang_code: area.lang_code || "pt", support_email: area.support_email || "", require_auth: area.require_auth !== false, theme: area.theme || "dark" });
     setEditLabels(area.custom_labels || {});
     setLabelsOpen(false);
   };
@@ -125,6 +127,8 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
       lang_code: editForm.lang_code || "pt",
       support_email: editForm.support_email?.trim() || undefined,
       custom_labels: Object.keys(cleanLabels).length > 0 ? cleanLabels : null,
+      require_auth: editForm.require_auth !== false,
+      theme: editForm.theme || "dark",
     }).eq("id", editingId);
     if (error) {
       toast.error(error.message.includes("duplicate") ? "Este slug já existe" : "Erro ao salvar");
@@ -335,6 +339,40 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
                     </div>
                   </div>
 
+                  {/* Auth & Theme toggles */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex items-center justify-between bg-muted/30 rounded-lg px-4 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Autenticação</p>
+                        <p className="text-xs text-muted-foreground">
+                          {editForm.require_auth !== false ? "Apenas compradores autorizados acessam" : "Qualquer pessoa acessa sem login"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, require_auth: editForm.require_auth === false })}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${editForm.require_auth !== false ? "bg-primary" : "bg-muted"}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${editForm.require_auth !== false ? "translate-x-5" : ""}`} />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between bg-muted/30 rounded-lg px-4 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Tema</p>
+                        <p className="text-xs text-muted-foreground">
+                          {editForm.theme === "light" ? "Tema claro (branco)" : "Tema escuro (padrão)"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, theme: editForm.theme === "light" ? "dark" : "light" })}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${editForm.theme === "light" ? "bg-primary" : "bg-muted"}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${editForm.theme === "light" ? "translate-x-5" : ""}`} />
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Custom Labels Section */}
                   <div className="border border-border rounded-lg overflow-hidden">
                     <button
@@ -398,6 +436,12 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
                     <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded flex items-center gap-1">
                       <Link className="h-3 w-3" /> /{area.slug}
                     </span>
+                    {!area.require_auth && (
+                      <span className="text-xs text-orange-500 bg-orange-500/10 px-2 py-1 rounded">Aberto</span>
+                    )}
+                    {area.theme === "light" && (
+                      <span className="text-xs text-blue-500 bg-blue-500/10 px-2 py-1 rounded">Claro</span>
+                    )}
                     {area.custom_labels && Object.keys(area.custom_labels).length > 0 && (
                       <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded flex items-center gap-1">
                         <Type className="h-3 w-3" /> Personalizado

@@ -383,6 +383,8 @@ export type Database = {
           support_email: string
           custom_labels: Record<string, string> | null
           owner_id: string | null
+          require_auth: boolean
+          theme: string
           active: boolean
           position: number
           created_at: string
@@ -400,6 +402,8 @@ export type Database = {
           support_email?: string
           custom_labels?: Record<string, string> | null
           owner_id?: string | null
+          require_auth?: boolean
+          theme?: string
           active?: boolean
           position?: number
           created_at?: string
@@ -417,6 +421,8 @@ export type Database = {
           support_email?: string
           custom_labels?: Record<string, string> | null
           owner_id?: string | null
+          require_auth?: boolean
+          theme?: string
           active?: boolean
           position?: number
           created_at?: string

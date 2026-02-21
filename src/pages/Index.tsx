@@ -17,6 +17,7 @@ interface AreaContext {
   langCode: LanguageCode;
   supportEmail: string;
   customLabels: Record<string, string> | null;
+  theme: string;
 }
 
 const Index = () => {
@@ -43,6 +44,7 @@ const Index = () => {
         langCode: lang.code,
         supportEmail: "contact@everwynventures.com",
         customLabels: null,
+        theme: "dark",
       });
       setAreaLoading(false);
       return;
@@ -51,7 +53,7 @@ const Index = () => {
     // Try database
     supabase
       .from("member_areas")
-      .select("slug, title, lang_code, support_email, custom_labels")
+      .select("slug, title, lang_code, support_email, custom_labels, theme")
       .eq("slug", slug)
       .eq("active", true)
       .single()
@@ -63,6 +65,7 @@ const Index = () => {
             langCode: (data.lang_code || "pt") as LanguageCode,
             supportEmail: data.support_email || "contact@everwynventures.com",
             customLabels: (data as any).custom_labels || null,
+            theme: (data as any).theme || "dark",
           });
         }
         setAreaLoading(false);
@@ -171,7 +174,7 @@ const Index = () => {
   const isWelcome = !activeLessonId;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-background">
+    <div className={`flex flex-col h-screen overflow-hidden bg-background ${area.theme === "light" ? "theme-light" : ""}`}>
       <header className="sticky top-0 z-50 flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-card shrink-0 md:px-6 md:py-5">
         <div className="flex items-center gap-3 min-w-0">
           {!isWelcome && (
