@@ -52,8 +52,8 @@ export function LessonFooter({
         </h1>
       </div>
 
-      {/* Actions: Complete + Rating */}
-      <div className="flex items-center justify-between">
+      {/* Actions */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <LessonCompleteButton lessonId={lessonId} translations={t} onToggle={onLessonComplete} language={language} />
         <StarRating lessonId={lessonId} label={t.yourRating} language={language} />
       </div>
