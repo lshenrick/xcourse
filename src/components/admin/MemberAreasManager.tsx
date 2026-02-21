@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabaseAdmin as supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Save, X, Globe, Link, GripVertical, Eye, EyeOff, Pencil, ChevronDown, ChevronUp, Type } from "lucide-react";
+import { Plus, Trash2, Save, X, Globe, Link, GripVertical, Eye, EyeOff, Pencil } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
@@ -15,13 +15,6 @@ const LANG_OPTIONS = [
   { code: "it", label: "Italiano" },
 ] as const;
 
-const CUSTOM_LABEL_FIELDS = [
-  { key: "audioTitle", label: "Título do Áudio", placeholder: "Ex: Meditação Guiada", defaultPt: "Meditação Guiada" },
-  { key: "audioDescription", label: "Descrição do Áudio", placeholder: "Ex: Pressione play para ouvir", defaultPt: "Pressione play para ouvir" },
-  { key: "ebookTitle", label: "Título do E-book", placeholder: "Ex: Este conteúdo é um E-book", defaultPt: "Este conteúdo é um E-book" },
-  { key: "ebookDescription", label: "Descrição do E-book", placeholder: "Ex: Clique no botão abaixo para baixar o PDF", defaultPt: "Clique no botão abaixo para baixar o PDF e ler no seu dispositivo." },
-  { key: "videoPlaceholder", label: "Placeholder do Vídeo", placeholder: "Ex: Vídeo em breve", defaultPt: "Insira o código do vídeo aqui" },
-] as const;
 
 interface MemberArea {
   id: string;
@@ -51,8 +44,6 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<MemberArea>>({});
-  const [editLabels, setEditLabels] = useState<Record<string, string>>({});
-  const [labelsOpen, setLabelsOpen] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [newForm, setNewForm] = useState({ slug: "", title: "", subtitle: "", icon: "", button_text: "Acessar", lang_code: "pt", support_email: "" });
   const [saving, setSaving] = useState(false);
@@ -103,20 +94,12 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
   const handleEdit = (area: MemberArea) => {
     setEditingId(area.id);
     setEditForm({ slug: area.slug, title: area.title, subtitle: area.subtitle, icon: area.icon, button_text: area.button_text, lang_code: area.lang_code || "pt", support_email: area.support_email || "", require_auth: area.require_auth !== false, theme: area.theme || "dark" });
-    setEditLabels(area.custom_labels || {});
-    setLabelsOpen(false);
   };
 
   const handleSaveEdit = async () => {
     if (!editingId || !editForm.slug?.trim() || !editForm.title?.trim()) return;
     setSaving(true);
     const slug = editForm.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
-
-    // Filter out empty labels
-    const cleanLabels: Record<string, string> = {};
-    for (const [k, v] of Object.entries(editLabels)) {
-      if (v.trim()) cleanLabels[k] = v.trim();
-    }
 
     const { error } = await supabase.from("member_areas").update({
       slug,
@@ -126,7 +109,6 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
       button_text: editForm.button_text?.trim() || "Acessar",
       lang_code: editForm.lang_code || "pt",
       support_email: editForm.support_email?.trim() || undefined,
-      custom_labels: Object.keys(cleanLabels).length > 0 ? cleanLabels : null,
       require_auth: editForm.require_auth !== false,
       theme: editForm.theme || "dark",
     }).eq("id", editingId);
@@ -135,7 +117,6 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
     } else {
       toast.success("Área atualizada!");
       setEditingId(null);
-      setLabelsOpen(false);
       fetchAreas();
     }
     setSaving(false);
@@ -373,42 +354,8 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
                     </div>
                   </div>
 
-                  {/* Custom Labels Section */}
-                  <div className="border border-border rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => setLabelsOpen(!labelsOpen)}
-                      className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors"
-                    >
-                      <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <Type className="h-4 w-4" />
-                        Personalizar Textos da Área
-                      </span>
-                      {labelsOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                    </button>
-
-                    {labelsOpen && (
-                      <div className="p-4 space-y-3 border-t border-border">
-                        <p className="text-xs text-muted-foreground">
-                          Deixe em branco para usar o texto padrão do idioma selecionado. Personalize apenas o que quiser.
-                        </p>
-                        {CUSTOM_LABEL_FIELDS.map((field) => (
-                          <div key={field.key}>
-                            <label className="text-xs text-muted-foreground">{field.label}</label>
-                            <Input
-                              value={editLabels[field.key] || ""}
-                              onChange={(e) => setEditLabels({ ...editLabels, [field.key]: e.target.value })}
-                              placeholder={field.placeholder}
-                              className="mt-1 text-sm"
-                            />
-                            <p className="text-xs text-muted-foreground/60 mt-0.5">Padrão: {field.defaultPt}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
                   <div className="flex gap-2 justify-end">
-                    <Button variant="outline" size="sm" onClick={() => { setEditingId(null); setLabelsOpen(false); }}>
+                    <Button variant="outline" size="sm" onClick={() => setEditingId(null)}>
                       <X className="h-4 w-4" />
                     </Button>
                     <Button size="sm" onClick={handleSaveEdit} disabled={saving} className="gap-2">
@@ -441,11 +388,6 @@ export function MemberAreasManager({ adminUserId, isSuperAdmin }: MemberAreasMan
                     )}
                     {area.theme === "light" && (
                       <span className="text-xs text-blue-500 bg-blue-500/10 px-2 py-1 rounded">Claro</span>
-                    )}
-                    {area.custom_labels && Object.keys(area.custom_labels).length > 0 && (
-                      <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded flex items-center gap-1">
-                        <Type className="h-3 w-3" /> Personalizado
-                      </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
