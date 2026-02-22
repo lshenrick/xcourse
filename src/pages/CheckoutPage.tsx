@@ -116,7 +116,6 @@ const CheckoutPage = () => {
   const [errEmail, setErrEmail] = useState("");
   const [focusName, setFocusName] = useState(false);
   const [focusEmail, setFocusEmail] = useState(false);
-  const [vpH, setVpH] = useState(typeof window !== "undefined" ? window.innerHeight : 800);
   const _0xr = useRef(false);
   const _0xc = useRef<HTMLDivElement>(null);
   const lang = _gl();
@@ -186,25 +185,10 @@ const CheckoutPage = () => {
     if (valid) setStep(2);
   };
 
-  // Track real visible height (respects virtual keyboard)
   useEffect(() => {
-    const vv = window.visualViewport;
-    const update = () => setVpH(vv ? vv.height : window.innerHeight);
-    if (vv) {
-      vv.addEventListener("resize", update);
-      vv.addEventListener("scroll", update);
-    }
-    window.addEventListener("resize", update);
-    update();
-    // Lock body
-    document.body.style.cssText = "margin:0;padding:0;overflow:hidden;height:100%;position:fixed;width:100%;";
-    document.documentElement.style.cssText = "margin:0;padding:0;overflow:hidden;height:100%;";
+    document.body.style.cssText = "margin:0;padding:0;";
+    document.documentElement.style.cssText = "margin:0;padding:0;";
     return () => {
-      if (vv) {
-        vv.removeEventListener("resize", update);
-        vv.removeEventListener("scroll", update);
-      }
-      window.removeEventListener("resize", update);
       document.body.style.cssText = "";
       document.documentElement.style.cssText = "";
     };
@@ -249,7 +233,7 @@ const CheckoutPage = () => {
 
   if (step === 2) {
     return (
-      <div style={{ position: "fixed" as const, top: 0, left: 0, width: "100%", height: vpH, background: "#f0f2f5", overflow: "hidden", fontFamily: FF }}>
+      <div style={{ width: "100%", height: "100vh", background: "#f0f2f5", overflow: "hidden", fontFamily: FF }}>
         {/* Top step bar */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 0,
@@ -276,19 +260,18 @@ const CheckoutPage = () => {
             <span style={{ fontSize: 13, fontWeight: 600, color: "#1f2937" }}>{t.step2}</span>
           </div>
         </div>
-        <div ref={_0xc} style={{ width: "100%", height: vpH - 52, overflow: "hidden" }} />
+        <div ref={_0xc} style={{ width: "100%", height: "calc(100vh - 52px)", overflow: "hidden" }} />
       </div>
     );
   }
 
   return (
     <div className="_ckout_wrap" style={{
-      position: "fixed" as const, top: 0, left: 0, width: "100%", height: vpH,
+      width: "100%", minHeight: "100vh",
       display: "flex", flexDirection: "column" as const, alignItems: "center",
       justifyContent: "center",
       background: "#f0f2f5", padding: "16px", fontFamily: FF,
-      boxSizing: "border-box" as const, overflow: "hidden",
-      transition: "height 0.15s ease-out"
+      boxSizing: "border-box" as const
     }}>
       {/* Card */}
       <div className="_ckout_card" style={{
