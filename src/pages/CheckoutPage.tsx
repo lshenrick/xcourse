@@ -257,10 +257,14 @@ const CheckoutPage = () => {
           {/* Email display */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            padding: "0 16px 10px", fontSize: 13, color: "#6b7280"
+            padding: "6px 16px 12px", fontSize: 14, color: "#6b7280",
+            overflow: "hidden", whiteSpace: "nowrap" as const
           }}>
             <IconMail />
-            <span style={{ fontWeight: 500, color: "#374151" }}>{email}</span>
+            <span style={{
+              fontWeight: 600, color: "#1f2937", fontSize: 14,
+              overflow: "hidden", textOverflow: "ellipsis"
+            }}>{email}</span>
           </div>
         </div>
         {/* Iframe container */}
