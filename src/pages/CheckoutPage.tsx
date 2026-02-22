@@ -186,15 +186,20 @@ const CheckoutPage = () => {
   };
 
   useEffect(() => {
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
     document.body.style.margin = "0";
+    if (step === 2) {
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+    } else {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+    }
     return () => {
       document.documentElement.style.overflow = "";
       document.body.style.overflow = "";
       document.body.style.margin = "";
     };
-  }, []);
+  }, [step]);
 
   // Inject global styles for focus/hover
   useEffect(() => {
@@ -206,8 +211,13 @@ const CheckoutPage = () => {
       ._ckout_input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important; }
       ._ckout_btn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(34,197,94,0.35); }
       ._ckout_btn:active { transform: translateY(0); }
+      ._ckout_wrap { min-height: 100vh; min-height: 100dvh; }
       @media (max-width: 480px) {
-        ._ckout_card { margin: 12px !important; padding: 24px 20px !important; }
+        ._ckout_card { margin: 0 !important; padding: 24px 20px !important; border-radius: 12px !important; }
+        ._ckout_wrap { padding: 12px !important; }
+      }
+      @media (max-height: 500px) {
+        ._ckout_wrap { justify-content: flex-start !important; padding-top: 16px !important; }
       }
     `;
     document.head.appendChild(style);
@@ -269,16 +279,18 @@ const CheckoutPage = () => {
   }
 
   return (
-    <div style={{
+    <div className="_ckout_wrap" style={{
       minHeight: "100vh", display: "flex", flexDirection: "column" as const, alignItems: "center",
-      justifyContent: "center", background: "#f0f2f5", margin: 0, padding: 16, fontFamily: FF
+      justifyContent: "center", background: "#f0f2f5", margin: 0, padding: 16, fontFamily: FF,
+      boxSizing: "border-box" as const
     }}>
       {/* Card */}
       <div className="_ckout_card" style={{
         background: "#fff", borderRadius: 12, padding: "32px 32px 28px",
         maxWidth: 440, width: "100%",
         boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06)",
-        border: "1px solid #e5e7eb"
+        border: "1px solid #e5e7eb",
+        boxSizing: "border-box" as const
       }}>
         {/* Step indicator */}
         <div style={{
