@@ -108,6 +108,45 @@ export type Database = {
           },
         ]
       }
+      checkout_pages: {
+        Row: {
+          id: string
+          slug: string
+          title: string
+          offer_code: string
+          description: string | null
+          owner_id: string
+          active: boolean
+          custom_css: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          slug: string
+          title: string
+          offer_code: string
+          description?: string | null
+          owner_id: string
+          active?: boolean
+          custom_css?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          slug?: string
+          title?: string
+          offer_code?: string
+          description?: string | null
+          owner_id?: string
+          active?: boolean
+          custom_css?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           content: string

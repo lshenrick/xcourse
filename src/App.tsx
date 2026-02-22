@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
 import Admin from "./pages/Admin";
+import CheckoutPage from "./pages/CheckoutPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +22,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<NotFound />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/checkout/:slug" element={<CheckoutPage />} />
             <Route path="/:langSlug" element={<Login />} />
             <Route path="/:langSlug/curso" element={<Index />} />
             <Route path="*" element={<NotFound />} />
