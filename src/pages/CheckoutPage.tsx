@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const CheckoutPage = () => {
   const { slug } = useParams<{ slug: string }>();
-  const [iframeSrc, setIframeSrc] = useState<string | null>(null);
+  const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -26,11 +26,38 @@ const CheckoutPage = () => {
           setNotFound(true);
         } else {
           const code = (data as any).offer_code || "";
-          setIframeSrc(code.startsWith("http") ? code : `https://pay.hotmart.com/${code}`);
+          // Ensure it's a full URL with checkoutMode=2
+          let url = code.startsWith("http") ? code : `https://pay.hotmart.com/${code}`;
+          if (!url.includes("checkoutMode=")) {
+            url += (url.includes("?") ? "&" : "?") + "checkoutMode=2";
+          }
+          setPaymentLink(url);
         }
         setLoading(false);
       });
   }, [slug]);
+
+  // Load Hotmart widget script and CSS
+  useEffect(() => {
+    if (!paymentLink) return;
+
+    // Load CSS
+    if (!document.querySelector('link[href*="hotmart-fb.min.css"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.type = "text/css";
+      link.href = "https://static.hotmart.com/css/hotmart-fb.min.css";
+      document.head.appendChild(link);
+    }
+
+    // Load Script
+    if (!document.querySelector('script[src*="widget.min.js"]')) {
+      const script = document.createElement("script");
+      script.src = "https://static.hotmart.com/checkout/widget.min.js";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  }, [paymentLink]);
 
   if (loading) {
     return (
@@ -40,7 +67,7 @@ const CheckoutPage = () => {
     );
   }
 
-  if (notFound || !iframeSrc) {
+  if (notFound || !paymentLink) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff" }}>
         <div style={{ textAlign: "center" }}>
@@ -52,12 +79,15 @@ const CheckoutPage = () => {
   }
 
   return (
-    <iframe
-      src={iframeSrc}
-      style={{ width: "100%", height: "100vh", border: "none", display: "block" }}
-      title="Checkout"
-      allow="payment"
-    />
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff" }}>
+      <a
+        onClick={() => false}
+        href={paymentLink}
+        className="hotmart-fb hotmart__button-checkout"
+      >
+        <img src="https://static.hotmart.com/img/btn-buy-green.png" alt="Comprar" />
+      </a>
+    </div>
   );
 };
 
