@@ -1,16 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-
-declare global {
-  interface Window {
-    checkoutElements: {
-      init: (mode: string, options: { offer: string }) => {
-        mount: (selector: string) => void;
-      };
-    };
-  }
-}
 
 interface CheckoutPageData {
   id: string;
@@ -26,11 +16,7 @@ const CheckoutPage = () => {
   const [page, setPage] = useState<CheckoutPageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
-  const checkoutRef = useRef<HTMLDivElement>(null);
-  const mountedRef = useRef(false);
 
-  // Fetch checkout page data
   useEffect(() => {
     if (!slug) {
       setNotFound(true);
@@ -53,42 +39,6 @@ const CheckoutPage = () => {
         setLoading(false);
       });
   }, [slug]);
-
-  // Load Hotmart Checkout Elements script
-  useEffect(() => {
-    if (!page) return;
-
-    const existingScript = document.querySelector(
-      'script[src="https://checkout.hotmart.com/lib/hotmart-checkout-elements.js"]'
-    );
-    if (existingScript) {
-      setScriptLoaded(true);
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://checkout.hotmart.com/lib/hotmart-checkout-elements.js";
-    script.async = true;
-    script.onload = () => setScriptLoaded(true);
-    script.onerror = () => console.error("Failed to load Hotmart Checkout Elements");
-    document.head.appendChild(script);
-  }, [page]);
-
-  // Mount the checkout once script is loaded
-  useEffect(() => {
-    if (!scriptLoaded || !page || !checkoutRef.current || mountedRef.current) return;
-    if (!window.checkoutElements) return;
-
-    try {
-      mountedRef.current = true;
-      const elements = window.checkoutElements.init("inlineCheckout", {
-        offer: page.offer_code,
-      });
-      elements.mount("#hotmart_inline_checkout");
-    } catch (err) {
-      console.error("Failed to mount Hotmart checkout:", err);
-    }
-  }, [scriptLoaded, page]);
 
   // Inject custom CSS if provided
   useEffect(() => {
@@ -123,28 +73,36 @@ const CheckoutPage = () => {
     );
   }
 
+  // Build the iframe src — accept full URL or just the code
+  const iframeSrc = page.offer_code.startsWith("http")
+    ? page.offer_code
+    : `https://pay.hotmart.com/${page.offer_code}`;
+
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
-        {/* Title */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-2">
-            {page.title}
-          </h1>
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Title (optional, only if has title/description) */}
+      {(page.title || page.description) && (
+        <div className="text-center px-4 pt-6 pb-2">
+          {page.title && (
+            <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 mb-1">
+              {page.title}
+            </h1>
+          )}
           {page.description && (
-            <p className="text-base text-zinc-600 max-w-xl mx-auto leading-relaxed">
+            <p className="text-sm text-zinc-600 max-w-xl mx-auto leading-relaxed">
               {page.description}
             </p>
           )}
         </div>
+      )}
 
-        {/* Hotmart Checkout Container */}
-        <div
-          id="hotmart_inline_checkout"
-          ref={checkoutRef}
-          className="w-full"
-        />
-      </div>
+      {/* Hotmart Checkout Iframe */}
+      <iframe
+        src={iframeSrc}
+        style={{ width: "100%", flex: 1, border: "none", minHeight: "80vh" }}
+        title={page.title || "Checkout"}
+        allow="payment"
+      />
     </div>
   );
 };

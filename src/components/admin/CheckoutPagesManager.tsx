@@ -138,7 +138,7 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
             <ShoppingCart className="h-5 w-5" /> Páginas de Checkout
           </h2>
           <p className="text-sm text-zinc-400 mt-1">
-            Crie páginas com o checkout da Hotmart embutido. Basta colar o código do offer.
+            Crie páginas com o checkout da Hotmart embutido via iframe. Cole o link de pagamento.
           </p>
         </div>
         {!showNew && (
@@ -180,15 +180,15 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
           </div>
 
           <div>
-            <label className="text-xs text-zinc-400 mb-1 block">Código do Offer (Hotmart)</label>
+            <label className="text-xs text-zinc-400 mb-1 block">Link de Pagamento (Hotmart)</label>
             <Input
               value={newForm.offer_code}
               onChange={e => setNewForm({ ...newForm, offer_code: e.target.value })}
-              placeholder="Ex: ABC123DEF ou cole o código do hotlink"
+              placeholder="Ex: https://pay.hotmart.com/ABC123DEF"
               className="bg-zinc-900 border-zinc-700"
             />
             <p className="text-xs text-zinc-500 mt-1">
-              Encontre no Hotmart → Produto → Hotlinks. É o código que aparece no link de pagamento.
+              Cole o link completo do checkout ou apenas o código. Encontre em Hotmart → Produto → Hotlinks.
             </p>
           </div>
 
@@ -264,7 +264,7 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-zinc-400 mb-1 block">Código do Offer</label>
+                    <label className="text-xs text-zinc-400 mb-1 block">Link de Pagamento</label>
                     <Input
                       value={editForm.offer_code || ""}
                       onChange={e => setEditForm({ ...editForm, offer_code: e.target.value })}
