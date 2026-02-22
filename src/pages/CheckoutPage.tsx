@@ -256,15 +256,23 @@ const CheckoutPage = () => {
           </div>
           {/* Email display */}
           <div style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            padding: "6px 16px 12px", fontSize: 14, color: "#6b7280",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            padding: "8px 16px 14px",
             overflow: "hidden", whiteSpace: "nowrap" as const
           }}>
-            <IconMail />
-            <span style={{
-              fontWeight: 600, color: "#1f2937", fontSize: 14,
-              overflow: "hidden", textOverflow: "ellipsis"
-            }}>{email}</span>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: "#f0fdf4", border: "1px solid #bbf7d0",
+              borderRadius: 8, padding: "8px 16px",
+              maxWidth: "100%", overflow: "hidden"
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              <span style={{
+                fontWeight: 700, color: "#15803d", fontSize: 15,
+                overflow: "hidden", textOverflow: "ellipsis",
+                letterSpacing: 0.2
+              }}>{email}</span>
+            </div>
           </div>
         </div>
         {/* Iframe container */}
