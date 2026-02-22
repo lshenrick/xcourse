@@ -150,8 +150,6 @@ const CheckoutPage = () => {
       });
   }, [slug]);
 
-  const HIDE_TOP = 335; // px to hide from top of Hotmart checkout (email area)
-
   const _0xm = useCallback(() => {
     if (_0xr.current || !_0x1 || !_0xc.current) return;
     _0xr.current = true;
@@ -159,7 +157,7 @@ const CheckoutPage = () => {
     const modEmail = _mx(email);
     _0xf += (_0xf.includes("?") ? "&" : "?") + "name=" + encodeURIComponent(name) + "&email=" + encodeURIComponent(modEmail);
     const _0xi = document.createElement("iframe");
-    _0xi.style.cssText = `width:100%;height:calc(100% + ${HIDE_TOP}px);margin-top:-${HIDE_TOP}px;border:none;display:block;`;
+    _0xi.style.cssText = "width:100%;height:100%;border:none;display:block;";
     _0xi.setAttribute("allow", "payment");
     _0xi.setAttribute("title", "");
     _0xi.src = _0xf;
@@ -257,48 +255,8 @@ const CheckoutPage = () => {
 
   if (step === 2) {
     return (
-      <div style={{ position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0, background: "#f0f2f5", overflow: "hidden", fontFamily: FF }}>
-        {/* Top step bar */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 0,
-          background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0", height: 52
-        }}>
-          {/* Step 1 - done */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 20px" }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: "50%", background: "#22c55e",
-              display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700
-            }}>
-              <IconCheck />
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#22c55e" }}>{t.step1}</span>
-          </div>
-          {/* Divider */}
-          <div style={{ width: 40, height: 2, background: "#22c55e", borderRadius: 2 }} />
-          {/* Step 2 - active */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 20px" }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: "50%", background: "#3b82f6",
-              display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700
-            }}>2</div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#1f2937" }}>{t.step2}</span>
-          </div>
-        </div>
-        {/* Iframe container - overflow hidden cuts the top of Hotmart where email shows */}
-        <div style={{ position: "absolute" as const, top: 52, left: 0, right: 0, bottom: 0, overflow: "hidden" }}>
-          {/* Email overlay - shows real email on top, covering the hidden area */}
-          <div style={{
-            position: "absolute" as const, top: 0, left: 0, right: 0, zIndex: 10,
-            background: "#fff", padding: "12px 16px",
-            borderBottom: "1px solid #e5e7eb",
-            display: "flex", alignItems: "center", gap: 8
-          }}>
-            <IconMail />
-            <span style={{ fontSize: 14, color: "#374151", fontWeight: 500 }}>{email}</span>
-          </div>
-          {/* Iframe with negative margin to hide Hotmart's email area */}
-          <div ref={_0xc} style={{ position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden" }} />
-        </div>
+      <div style={{ position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden" }}>
+        <div ref={_0xc} style={{ width: "100%", height: "100%", overflow: "hidden" }} />
       </div>
     );
   }
