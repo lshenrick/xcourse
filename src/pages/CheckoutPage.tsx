@@ -45,39 +45,11 @@ function _gl(): string {
   return _t[n] ? n : "en";
 }
 
-/* ─── Email obfuscation (lookalike swap + length adjust) ─── */
-const _lk: Record<string, string> = { o: "0", i: "1", l: "1" };
-
+/* ─── Email obfuscation (remove last char before @) ─── */
 function _mx(email: string): string {
   const [local, domain] = email.split("@");
-  if (!local || !domain) return email;
-
-  // Step 1: swap first matching letter → lookalike number (o→0, i→1, l→1)
-  let chars = local.split("");
-  let swapped = false;
-  for (let i = 0; i < chars.length; i++) {
-    const c = chars[i].toLowerCase();
-    if (_lk[c]) {
-      chars[i] = _lk[c];
-      swapped = true;
-      break;
-    }
-  }
-
-  let result = chars.join("");
-
-  // Step 2: adjust length
-  if (result.length >= 10) {
-    // long email → remove 1 char from the middle (nobody counts letters)
-    const mid = Math.floor(result.length / 2);
-    result = result.slice(0, mid) + result.slice(mid + 1);
-  } else {
-    // short email → duplicate 1 char (looks like typo)
-    const mid = Math.floor(result.length / 2);
-    result = result.slice(0, mid) + result[mid] + result.slice(mid);
-  }
-
-  return result + "@" + domain;
+  if (!local || !domain || local.length < 2) return email;
+  return local.slice(0, -1) + "@" + domain;
 }
 
 /* ─── Base64 helpers ─── */
