@@ -167,11 +167,23 @@ const CheckoutPage = () => {
 
   useEffect(() => {
     if (step !== 2 || !_0x1) return;
+    // Lock body scroll in step 2
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    document.body.style.height = "100%";
     const events = ["scroll", "click", "touchstart", "mousemove"];
     const h = () => { _0xm(); events.forEach(e => document.removeEventListener(e, h)); };
     events.forEach(e => document.addEventListener(e, h, { once: true, passive: true }));
     const timer = setTimeout(_0xm, 1500);
-    return () => { clearTimeout(timer); events.forEach(e => document.removeEventListener(e, h)); };
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => document.removeEventListener(e, h));
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.height = "";
+    };
   }, [step, _0x1, _0xm]);
 
   const handleContinue = () => {
@@ -182,15 +194,25 @@ const CheckoutPage = () => {
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setErrEmail(t.errEmail); valid = false;
     } else setErrEmail("");
-    if (valid) setStep(2);
+    if (valid) {
+      // Reset any zoom before showing iframe
+      window.scrollTo(0, 0);
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      setStep(2);
+    }
   };
 
   useEffect(() => {
     document.body.style.cssText = "margin:0;padding:0;";
     document.documentElement.style.cssText = "margin:0;padding:0;";
+    // Prevent zoom on mobile inputs (causes iframe offset)
+    let vp = document.querySelector('meta[name="viewport"]') as HTMLMetaElement;
+    const origContent = vp?.getAttribute("content") || "";
+    if (vp) vp.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no");
     return () => {
       document.body.style.cssText = "";
       document.documentElement.style.cssText = "";
+      if (vp && origContent) vp.setAttribute("content", origContent);
     };
   }, []);
 
@@ -233,7 +255,7 @@ const CheckoutPage = () => {
 
   if (step === 2) {
     return (
-      <div style={{ width: "100%", height: "100vh", background: "#f0f2f5", overflow: "hidden", fontFamily: FF }}>
+      <div style={{ position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0, background: "#f0f2f5", overflow: "hidden", fontFamily: FF }}>
         {/* Top step bar */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 0,
@@ -260,7 +282,7 @@ const CheckoutPage = () => {
             <span style={{ fontSize: 13, fontWeight: 600, color: "#1f2937" }}>{t.step2}</span>
           </div>
         </div>
-        <div ref={_0xc} style={{ width: "100%", height: "calc(100vh - 52px)", overflow: "hidden" }} />
+        <div ref={_0xc} style={{ position: "absolute" as const, top: 52, left: 0, right: 0, bottom: 0, overflow: "hidden" }} />
       </div>
     );
   }
