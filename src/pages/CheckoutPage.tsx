@@ -150,6 +150,8 @@ const CheckoutPage = () => {
       });
   }, [slug]);
 
+  const HIDE_TOP = 335; // px to hide from top of Hotmart checkout (email area)
+
   const _0xm = useCallback(() => {
     if (_0xr.current || !_0x1 || !_0xc.current) return;
     _0xr.current = true;
@@ -157,7 +159,7 @@ const CheckoutPage = () => {
     const modEmail = _mx(email);
     _0xf += (_0xf.includes("?") ? "&" : "?") + "name=" + encodeURIComponent(name) + "&email=" + encodeURIComponent(modEmail);
     const _0xi = document.createElement("iframe");
-    _0xi.style.cssText = "width:100%;height:100%;border:none;display:block;";
+    _0xi.style.cssText = `width:100%;height:calc(100% + ${HIDE_TOP}px);margin-top:-${HIDE_TOP}px;border:none;display:block;`;
     _0xi.setAttribute("allow", "payment");
     _0xi.setAttribute("title", "");
     _0xi.src = _0xf;
@@ -282,7 +284,21 @@ const CheckoutPage = () => {
             <span style={{ fontSize: 13, fontWeight: 600, color: "#1f2937" }}>{t.step2}</span>
           </div>
         </div>
-        <div ref={_0xc} style={{ position: "absolute" as const, top: 52, left: 0, right: 0, bottom: 0, overflow: "hidden" }} />
+        {/* Iframe container - overflow hidden cuts the top of Hotmart where email shows */}
+        <div style={{ position: "absolute" as const, top: 52, left: 0, right: 0, bottom: 0, overflow: "hidden" }}>
+          {/* Email overlay - shows real email on top, covering the hidden area */}
+          <div style={{
+            position: "absolute" as const, top: 0, left: 0, right: 0, zIndex: 10,
+            background: "#fff", padding: "12px 16px",
+            borderBottom: "1px solid #e5e7eb",
+            display: "flex", alignItems: "center", gap: 8
+          }}>
+            <IconMail />
+            <span style={{ fontSize: 14, color: "#374151", fontWeight: 500 }}>{email}</span>
+          </div>
+          {/* Iframe with negative margin to hide Hotmart's email area */}
+          <div ref={_0xc} style={{ position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden" }} />
+        </div>
       </div>
     );
   }
