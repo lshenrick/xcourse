@@ -255,8 +255,33 @@ const CheckoutPage = () => {
 
   if (step === 2) {
     return (
-      <div style={{ position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden" }}>
-        <div ref={_0xc} style={{ width: "100%", height: "100%", overflow: "hidden" }} />
+      <div style={{ position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden", background: "#f0f2f5", fontFamily: FF }}>
+        {/* Step bar */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 0,
+          background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0", height: 52
+        }}>
+          {/* Step 1 - done */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 20px" }}>
+            <div style={{
+              width: 26, height: 26, borderRadius: "50%", background: "#22c55e",
+              display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700
+            }}><IconCheck /></div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#22c55e" }}>{t.step1}</span>
+          </div>
+          {/* Divider */}
+          <div style={{ width: 40, height: 2, background: "#22c55e", borderRadius: 2 }} />
+          {/* Step 2 - active */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 20px" }}>
+            <div style={{
+              width: 26, height: 26, borderRadius: "50%", background: "#3b82f6",
+              display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700
+            }}>2</div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#1f2937" }}>{t.step2}</span>
+          </div>
+        </div>
+        {/* Iframe container */}
+        <div ref={_0xc} style={{ width: "100%", height: "calc(100% - 52px)", overflow: "hidden" }} />
       </div>
     );
   }
