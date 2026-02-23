@@ -254,29 +254,22 @@ const CheckoutPage = () => {
               <span style={{ fontSize: 13, fontWeight: 600, color: "#1f2937" }}>{t.step2}</span>
             </div>
           </div>
-          {/* Email display */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            padding: "8px 16px 14px",
-            overflow: "hidden", whiteSpace: "nowrap" as const
-          }}>
+          {/* Email field (Hotmart style) */}
+          <div style={{ padding: "4px 20px 12px", maxWidth: 480, margin: "0 auto", width: "100%", boxSizing: "border-box" as const }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 4 }}>{t.labelEmail}</label>
             <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: "#f0fdf4", border: "1px solid #bbf7d0",
-              borderRadius: 8, padding: "8px 16px",
-              maxWidth: "100%", overflow: "hidden"
+              display: "flex", alignItems: "center", gap: 10,
+              background: "#f9fafb", border: "1px solid #d1d5db", borderRadius: 6,
+              padding: "10px 12px"
             }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-              <span style={{
-                fontWeight: 700, color: "#15803d", fontSize: 15,
-                overflow: "hidden", textOverflow: "ellipsis",
-                letterSpacing: 0.2
-              }}>{email}</span>
+              <IconMail />
+              <span style={{ flex: 1, fontSize: 14, color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{email}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
           </div>
         </div>
         {/* Iframe container */}
-        <div ref={_0xc} style={{ width: "100%", height: "calc(100% - 82px)", overflow: "hidden" }} />
+        <div ref={_0xc} style={{ width: "100%", height: "calc(100% - 98px)", overflow: "hidden" }} />
       </div>
     );
   }
