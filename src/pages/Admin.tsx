@@ -150,14 +150,14 @@ const AdminPanel = () => {
     checkRoles();
   }, [user]);
 
-  // Fetch comments (filter by owned areas for non-super admins)
+  // Fetch comments (filter by owned areas — each admin sees only their own courses)
   const fetchComments = async () => {
     if (!user) return;
+    if (areaLabels.length === 0) { setComments([]); return; }
+    const ownedSlugs = areaLabels.map((a) => a.slug);
     let query = supabaseAdmin.from("comments").select("*").eq("status", filter as "pending" | "approved" | "rejected").order("created_at", { ascending: false });
     if (langFilter !== "all") query = query.eq("language", langFilter);
-    else if (areaLabels.length > 0) {
-      query = query.in("language", areaLabels.map((a) => a.slug));
-    }
+    else query = query.in("language", ownedSlugs);
 
     const { data } = await query;
     if (!data) return;
@@ -176,11 +176,11 @@ const AdminPanel = () => {
   // Fetch access logs + ratings + comments per user (filter by owned areas)
   const fetchAccessLogs = async () => {
     if (!user) return;
+    if (areaLabels.length === 0) { setAccessLogs([]); setGroupedUsers([]); return; }
+    const ownedSlugs = areaLabels.map((a) => a.slug);
     let query = supabaseAdmin.from("access_logs").select("*").order("accessed_at", { ascending: false }).limit(500);
     if (accessLangFilter !== "all") query = query.eq("language", accessLangFilter);
-    else if (areaLabels.length > 0) {
-      query = query.in("language", areaLabels.map((a) => a.slug));
-    }
+    else query = query.in("language", ownedSlugs);
     const { data } = await query;
     const logs = data || [];
     setAccessLogs(logs);
