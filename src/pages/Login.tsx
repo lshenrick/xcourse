@@ -168,7 +168,7 @@ const Login = () => {
     const { data: { user: loggedUser } } = await supabase.auth.getUser();
     if (loggedUser) {
       await logAccess(loggedUser.id, trimmedEmail);
-      await supabase.from("profiles").update({ display_name: name.trim() }).eq("id", loggedUser.id);
+      await supabase.from("profiles").upsert({ id: loggedUser.id, email: trimmedEmail, display_name: name.trim() }, { onConflict: "id" });
     }
 
     navigate(`/${areaInfo.slug}/curso`);
