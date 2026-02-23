@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, X, MessageCircle, LogOut, Users, Shield, Globe, Trash2, UserPlus, Clock, Star, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, BookOpen, Bell, Monitor, Smartphone, Tablet, CheckCircle2, Search, Link2, ShoppingCart } from "lucide-react";
+import { Check, X, MessageCircle, LogOut, Users, Shield, Globe, Trash2, UserPlus, Clock, Star, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, BookOpen, Bell, Monitor, Smartphone, Tablet, CheckCircle2, Search, Link2, ShoppingCart, Bot } from "lucide-react";
 import { CourseContentManager } from "@/components/admin/CourseContentManager";
 import { MemberAreasManager } from "@/components/admin/MemberAreasManager";
 import { IntegrationsManager } from "@/components/admin/IntegrationsManager";
 import { CheckoutPagesManager } from "@/components/admin/CheckoutPagesManager";
+import { AutomationManager } from "@/components/admin/AutomationManager";
 import { toast } from "sonner";
 // Emails com acesso admin (adicione mais emails aqui)
 const ADMIN_EMAILS = [
@@ -529,6 +530,7 @@ const AdminPanel = () => {
             <TabsTrigger value="areas" className="gap-2"><Globe className="h-4 w-4" /> Áreas</TabsTrigger>
             <TabsTrigger value="integrations" className="gap-2"><Link2 className="h-4 w-4" /> Integrações</TabsTrigger>
             <TabsTrigger value="checkout" className="gap-2"><ShoppingCart className="h-4 w-4" /> Checkout</TabsTrigger>
+            <TabsTrigger value="automation" className="gap-2"><Bot className="h-4 w-4" /> Automação</TabsTrigger>
             {isSuperAdmin && (
               <TabsTrigger value="admins" className="gap-2"><Shield className="h-4 w-4" /> Administradores</TabsTrigger>
             )}
@@ -552,6 +554,11 @@ const AdminPanel = () => {
           {/* CHECKOUT PAGES TAB */}
           <TabsContent value="checkout">
             <CheckoutPagesManager adminUserId={user.id} isSuperAdmin={isSuperAdmin} />
+          </TabsContent>
+
+          {/* AUTOMATION TAB */}
+          <TabsContent value="automation">
+            <AutomationManager adminUserId={user.id} isSuperAdmin={isSuperAdmin} />
           </TabsContent>
 
           {/* COMMENTS TAB */}

@@ -631,6 +631,141 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_training: {
+        Row: {
+          id: string
+          area_slug: string
+          ai_name: string
+          ai_tone: string
+          qa_pairs: Json
+          retention_attempt_1: string
+          retention_attempt_2: string
+          retention_final: string
+          extra_context: string
+          support_email: string
+          google_refresh_token: string
+          google_connected: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          area_slug: string
+          ai_name?: string
+          ai_tone?: string
+          qa_pairs?: Json
+          retention_attempt_1?: string
+          retention_attempt_2?: string
+          retention_final?: string
+          extra_context?: string
+          support_email?: string
+          google_refresh_token?: string
+          google_connected?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          area_slug?: string
+          ai_name?: string
+          ai_tone?: string
+          qa_pairs?: Json
+          retention_attempt_1?: string
+          retention_attempt_2?: string
+          retention_final?: string
+          extra_context?: string
+          support_email?: string
+          google_refresh_token?: string
+          google_connected?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_funnel_templates: {
+        Row: {
+          id: string
+          area_slug: string
+          position: number
+          subject: string
+          body: string
+          delay_hours: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          area_slug: string
+          position: number
+          subject?: string
+          body?: string
+          delay_hours?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          area_slug?: string
+          position?: number
+          subject?: string
+          body?: string
+          delay_hours?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_funnel_log: {
+        Row: {
+          id: string
+          buyer_email: string
+          area_slug: string
+          email_position: number
+          sent_at: string
+          status: string
+        }
+        Insert: {
+          id?: string
+          buyer_email: string
+          area_slug: string
+          email_position: number
+          sent_at?: string
+          status?: string
+        }
+        Update: {
+          id?: string
+          buyer_email?: string
+          area_slug?: string
+          email_position?: number
+          sent_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      refund_requests: {
+        Row: {
+          id: string
+          buyer_email: string
+          area_slug: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          buyer_email: string
+          area_slug: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          buyer_email?: string
+          area_slug?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
