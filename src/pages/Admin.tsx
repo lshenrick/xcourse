@@ -289,8 +289,46 @@ const AdminPanel = () => {
     setAreaLabels((data || []) as AreaLabel[]);
   };
 
+  // One-time migration: fix comments/replies with old langCode → area slug
+  const migrateCommentLanguages = async () => {
+    // Get all lessons → modules mapping
+    const { data: lessons } = await supabaseAdmin.from("course_lessons").select("id, module_id");
+    const { data: modules } = await supabaseAdmin.from("course_modules").select("id, language");
+    if (!lessons || !modules) return;
+    const modLang = new Map(modules.map((m) => [m.id, m.language]));
+    const lessonSlug = new Map<string, string>();
+    for (const l of lessons) {
+      const slug = modLang.get(l.module_id);
+      if (slug) lessonSlug.set(l.id, slug);
+    }
+    // Fix comments with short language codes (2-3 chars = old langCode)
+    const { data: oldComments } = await supabaseAdmin.from("comments").select("id, lesson_id, language");
+    if (!oldComments) return;
+    const toFix = oldComments.filter((c) => c.language && c.language.length <= 3 && lessonSlug.has(c.lesson_id));
+    for (const c of toFix) {
+      const correctSlug = lessonSlug.get(c.lesson_id)!;
+      if (c.language !== correctSlug) {
+        await supabaseAdmin.from("comments").update({ language: correctSlug }).eq("id", c.id);
+      }
+    }
+    // Fix comment_replies too
+    const { data: oldReplies } = await supabaseAdmin.from("comment_replies").select("id, comment_id, language");
+    if (!oldReplies) return;
+    const commentSlugMap = new Map(oldComments.map((c) => [c.id, lessonSlug.get(c.lesson_id) || c.language]));
+    const repliesToFix = oldReplies.filter((r) => r.language && r.language.length <= 3);
+    for (const r of repliesToFix) {
+      const correctSlug = commentSlugMap.get(r.comment_id);
+      if (correctSlug && r.language !== correctSlug) {
+        await supabaseAdmin.from("comment_replies").update({ language: correctSlug }).eq("id", r.id);
+      }
+    }
+    console.log(`[migration] Fixed ${toFix.length} comments, ${repliesToFix.length} replies`);
+  };
+
   // Load area labels first (needed for owner-based filtering in other fetches)
   useEffect(() => { if (isAdmin) fetchAreaLabels(); }, [isAdmin]);
+  // Run migration once on first admin load
+  useEffect(() => { if (isSuperAdmin) migrateCommentLanguages(); }, [isSuperAdmin]);
   // Load data that depends on areaLabels for non-super admin filtering
   useEffect(() => { if (isAdmin && areaLabels.length > 0) fetchComments(); }, [isAdmin, areaLabels, filter, langFilter]);
   useEffect(() => { if (isAdmin && areaLabels.length > 0) fetchAccessLogs(); }, [isAdmin, areaLabels, accessLangFilter]);
