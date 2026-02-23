@@ -235,7 +235,7 @@ const Index = () => {
               modules={modules}
               translations={t}
               onLessonComplete={handleLessonComplete}
-              language={area.langCode}
+              language={area.slug}
               supportEmail={area.supportEmail}
             />
           )}
