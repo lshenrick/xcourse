@@ -147,13 +147,8 @@ const CheckoutPage = () => {
     document.body.style.position = "fixed";
     document.body.style.width = "100%";
     document.body.style.height = "100%";
-    const events = ["scroll", "click", "touchstart", "mousemove"];
-    const h = () => { _0xm(); events.forEach(e => document.removeEventListener(e, h)); };
-    events.forEach(e => document.addEventListener(e, h, { once: true, passive: true }));
-    const timer = setTimeout(_0xm, 1500);
+    _0xm();
     return () => {
-      clearTimeout(timer);
-      events.forEach(e => document.removeEventListener(e, h));
       document.body.style.overflow = "";
       document.body.style.position = "";
       document.body.style.width = "";
@@ -173,6 +168,18 @@ const CheckoutPage = () => {
       setErrEmailConfirm(t.errEmailConfirm); valid = false;
     } else setErrEmailConfirm("");
     if (valid) {
+      // Save real email mapping before Hotmart obfuscation (fire-and-forget)
+      fetch("/api/checkout-lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          real_email: email.trim(),
+          obfuscated_email: _mx(email.trim()),
+          name: name.trim(),
+          checkout_slug: slug,
+        }),
+      }).catch(() => {});
+
       // Reset any zoom before showing iframe
       window.scrollTo(0, 0);
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();

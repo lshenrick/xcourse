@@ -123,6 +123,51 @@ async function sendEmail(resendApiKey: string, from: string, to: string, subject
   return res.json();
 }
 
+// ─── Resolve real email from checkout_leads ───
+
+async function resolveRealEmail(
+  supabase: ReturnType<typeof getSupabase>,
+  webhookEmail: string
+): Promise<{ realEmail: string; realName: string | null } | null> {
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const normalizedEmail = webhookEmail.toLowerCase().trim();
+
+  // Step 1: Try matching by obfuscated_email (normal case - customer didn't change email on Hotmart)
+  const { data: byObfuscated } = await supabase
+    .from("checkout_leads")
+    .select("id, real_email, name")
+    .eq("obfuscated_email", normalizedEmail)
+    .eq("status", "pending")
+    .gte("created_at", twentyFourHoursAgo)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (byObfuscated && byObfuscated.length > 0) {
+    const lead = byObfuscated[0];
+    await supabase.from("checkout_leads").update({ status: "matched" }).eq("id", lead.id);
+    return { realEmail: lead.real_email, realName: lead.name };
+  }
+
+  // Step 2: Try matching by real_email (customer corrected email on Hotmart)
+  const { data: byReal } = await supabase
+    .from("checkout_leads")
+    .select("id, real_email, name")
+    .eq("real_email", normalizedEmail)
+    .eq("status", "pending")
+    .gte("created_at", twentyFourHoursAgo)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (byReal && byReal.length > 0) {
+    const lead = byReal[0];
+    await supabase.from("checkout_leads").update({ status: "matched" }).eq("id", lead.id);
+    return { realEmail: lead.real_email, realName: lead.name };
+  }
+
+  // No match found - will use webhook email as-is
+  return null;
+}
+
 // ─── Handler ───
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -205,12 +250,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (event === "PURCHASE_APPROVED" || event === "PURCHASE_COMPLETE") {
+        // Resolve real email from checkout_leads
+        const resolved = await resolveRealEmail(supabase, buyerEmail);
+        const finalEmail = resolved?.realEmail || buyerEmail;
+        const finalName = resolved?.realName || buyerName;
+
         const { error: buyerError } = await supabase
           .from("authorized_buyers")
           .upsert(
             {
-              email: buyerEmail.toLowerCase().trim(),
-              name: buyerName || null,
+              email: finalEmail.toLowerCase().trim(),
+              name: finalName || null,
               area_slug: areaSlug,
               hotmart_transaction: transaction || null,
               hotmart_product_id: productId,
@@ -224,8 +274,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const { error: insertError } = await supabase
             .from("authorized_buyers")
             .insert({
-              email: buyerEmail.toLowerCase().trim(),
-              name: buyerName || null,
+              email: finalEmail.toLowerCase().trim(),
+              name: finalName || null,
               area_slug: areaSlug,
               hotmart_transaction: transaction || null,
               hotmart_product_id: productId,
@@ -257,17 +307,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const accessLink = `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}/${areaSlug}`;
 
             const subject = (settings.email_subject_template || t.defaultSubject)
-              .replace(/\{name\}/g, buyerName || "")
+              .replace(/\{name\}/g, finalName || "")
               .replace(/\{course_name\}/g, courseName)
-              .replace(/\{email\}/g, buyerEmail);
+              .replace(/\{email\}/g, finalEmail);
 
             const bodyHtml = buildEmailHtml(
               settings.email_body_template || t.defaultBody,
               {
-                name: buyerName || t.fallbackName,
+                name: finalName || t.fallbackName,
                 course_name: courseName,
                 access_link: accessLink,
-                email: buyerEmail,
+                email: finalEmail,
               },
               lang
             );
@@ -275,7 +325,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             await sendEmail(
               RESEND_API_KEY,
               settings.email_from || "noreply@xmembers.app",
-              buyerEmail,
+              finalEmail,
               subject,
               bodyHtml
             );
@@ -295,12 +345,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ...logEntry,
           area_slug: areaSlug,
           status: "processed",
+          error_message: resolved
+            ? `Resolved real email: ${finalEmail} (from webhook: ${buyerEmail})`
+            : null,
         });
       } else if (event === "PURCHASE_REFUNDED" || event === "PURCHASE_CHARGEBACK") {
+        // Resolve real email for refunds too
+        const resolved = await resolveRealEmail(supabase, buyerEmail);
+        const finalEmail = resolved?.realEmail || buyerEmail;
+
         await supabase
           .from("authorized_buyers")
           .update({ status: "refunded", updated_at: new Date().toISOString() })
-          .eq("email", buyerEmail.toLowerCase().trim())
+          .eq("email", finalEmail.toLowerCase().trim())
           .eq("area_slug", areaSlug);
 
         await supabase.from("webhook_logs").insert({

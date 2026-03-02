@@ -108,6 +108,36 @@ export type Database = {
           },
         ]
       }
+      checkout_leads: {
+        Row: {
+          id: string
+          real_email: string
+          obfuscated_email: string
+          name: string | null
+          checkout_slug: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          real_email: string
+          obfuscated_email: string
+          name?: string | null
+          checkout_slug: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          real_email?: string
+          obfuscated_email?: string
+          name?: string | null
+          checkout_slug?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       checkout_pages: {
         Row: {
           id: string
