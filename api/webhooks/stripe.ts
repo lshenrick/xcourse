@@ -119,6 +119,148 @@ function getRawBody(req: IncomingMessage): Promise<Buffer> {
   });
 }
 
+// ─── Shared: authorize buyer + send email ───
+
+async function processAuthorizedBuyer(
+  supabase: ReturnType<typeof getSupabase>,
+  stripe: Stripe,
+  req: VercelRequest,
+  areaSlug: string,
+  email: string,
+  name: string | null,
+  customerId: string | null,
+  subscriptionId: string | null,
+  logEntry: Record<string, any>,
+  paymentType?: string
+) {
+  // Check integration_settings for this area
+  const { data: settings } = await supabase
+    .from("integration_settings")
+    .select("*")
+    .eq("area_slug", areaSlug)
+    .single();
+
+  if (settings && !settings.webhook_enabled) {
+    await supabase.from("webhook_logs").insert({
+      ...logEntry,
+      area_slug: areaSlug,
+      status: "ignored",
+      error_message: "Webhook disabled for this area",
+    });
+    return;
+  }
+
+  // Create authorized buyer
+  const { error: buyerError } = await supabase
+    .from("authorized_buyers")
+    .upsert(
+      {
+        email,
+        name: name || null,
+        area_slug: areaSlug,
+        payment_provider: "stripe",
+        stripe_customer_id: customerId || null,
+        stripe_subscription_id: subscriptionId || null,
+        status: "active",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "email,area_slug", ignoreDuplicates: false }
+    );
+
+  if (buyerError) {
+    const { error: insertError } = await supabase.from("authorized_buyers").insert({
+      email,
+      name: name || null,
+      area_slug: areaSlug,
+      payment_provider: "stripe",
+      stripe_customer_id: customerId || null,
+      stripe_subscription_id: subscriptionId || null,
+      status: "active",
+    });
+    if (insertError && !insertError.message.includes("duplicate")) {
+      await supabase.from("webhook_logs").insert({
+        ...logEntry,
+        area_slug: areaSlug,
+        status: "error",
+        error_message: `DB error: ${insertError.message}`,
+      });
+      return;
+    }
+  }
+
+  // If subscription, track it
+  if (subscriptionId && paymentType === "recurring") {
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    await supabase.from("subscriptions").upsert(
+      {
+        stripe_subscription_id: subscriptionId,
+        stripe_customer_id: customerId || "",
+        email,
+        area_slug: areaSlug,
+        status: "active",
+        current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "stripe_subscription_id", ignoreDuplicates: false }
+    );
+  }
+
+  // Send welcome email
+  if (settings?.email_enabled && RESEND_API_KEY) {
+    try {
+      const { data: areaInfo } = await supabase
+        .from("member_areas")
+        .select("title, slug, lang_code")
+        .eq("slug", areaSlug)
+        .single();
+
+      const courseName = areaInfo?.title || areaSlug;
+      const lang = (areaInfo as any)?.lang_code || "pt";
+      const t = getLang(lang);
+      const accessLink = `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}/${areaSlug}`;
+
+      const subject = (settings.email_subject_template || t.defaultSubject)
+        .replace(/\{name\}/g, name || "")
+        .replace(/\{course_name\}/g, courseName)
+        .replace(/\{email\}/g, email);
+
+      const bodyHtml = buildEmailHtml(
+        settings.email_body_template || t.defaultBody,
+        {
+          name: name || t.fallbackName,
+          course_name: courseName,
+          access_link: accessLink,
+          email,
+        },
+        lang
+      );
+
+      await sendEmail(
+        RESEND_API_KEY,
+        settings.email_from || "noreply@xmembers.app",
+        email,
+        subject,
+        bodyHtml
+      );
+    } catch (emailErr: unknown) {
+      const errorMessage = emailErr instanceof Error ? emailErr.message : "Unknown email error";
+      await supabase.from("webhook_logs").insert({
+        ...logEntry,
+        area_slug: areaSlug,
+        status: "processed",
+        error_message: `Buyer authorized, but email failed: ${errorMessage}`,
+      });
+      return;
+    }
+  }
+
+  await supabase.from("webhook_logs").insert({
+    ...logEntry,
+    area_slug: areaSlug,
+    status: "processed",
+  });
+}
+
 // ─── Handler ───
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -148,6 +290,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Try each webhook secret to verify the signature
   let event: Stripe.Event | null = null;
   let matchedSecretKey: string | null = null;
+  let matchedWebhookSecret: string | null = null;
 
   // Deduplicate by webhook_secret to avoid redundant attempts
   const uniqueSecrets = new Map<string, string>();
@@ -162,15 +305,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const tempStripe = getStripe(secretKey);
       event = tempStripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
       matchedSecretKey = secretKey;
+      matchedWebhookSecret = webhookSecret;
       break;
     } catch {
       // Signature didn't match this secret, try next
     }
   }
 
-  if (!event || !matchedSecretKey) {
+  if (!event || !matchedSecretKey || !matchedWebhookSecret) {
     return res.status(400).json({ error: "Webhook signature verification failed: no matching secret found" });
   }
+
+  // Find all areas that share this webhook secret (same Stripe account)
+  const matchedAreaSlugs = allSettings
+    .filter(s => s.stripe_webhook_secret === matchedWebhookSecret)
+    .map(s => s.area_slug);
 
   const stripe = getStripe(matchedSecretKey);
 
@@ -236,138 +385,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ status: "ignored", reason: "Price not mapped" });
       }
 
+      const finalEmail = customerEmail.toLowerCase().trim();
       for (const mapping of productMappings) {
-        const areaSlug = mapping.area_slug;
-        const finalEmail = customerEmail.toLowerCase().trim();
-        const finalName = customerName;
-
-        // Check integration_settings for this area
-        const { data: settings } = await supabase
-          .from("integration_settings")
-          .select("*")
-          .eq("area_slug", areaSlug)
-          .single();
-
-        if (settings && !settings.webhook_enabled) {
-          await supabase.from("webhook_logs").insert({
-            ...logEntry,
-            area_slug: areaSlug,
-            status: "ignored",
-            error_message: "Webhook disabled for this area",
-          });
-          continue;
-        }
-
-        // Create authorized buyer
-        const { error: buyerError } = await supabase
-          .from("authorized_buyers")
-          .upsert(
-            {
-              email: finalEmail,
-              name: finalName || null,
-              area_slug: areaSlug,
-              payment_provider: "stripe",
-              stripe_customer_id: customerId || null,
-              stripe_subscription_id: subscriptionId || null,
-              status: "active",
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "email,area_slug", ignoreDuplicates: false }
-          );
-
-        if (buyerError) {
-          // Fallback: try insert
-          const { error: insertError } = await supabase.from("authorized_buyers").insert({
-            email: finalEmail,
-            name: finalName || null,
-            area_slug: areaSlug,
-            payment_provider: "stripe",
-            stripe_customer_id: customerId || null,
-            stripe_subscription_id: subscriptionId || null,
-            status: "active",
-          });
-          if (insertError && !insertError.message.includes("duplicate")) {
-            await supabase.from("webhook_logs").insert({
-              ...logEntry,
-              area_slug: areaSlug,
-              status: "error",
-              error_message: `DB error: ${insertError.message}`,
-            });
-            continue;
-          }
-        }
-
-        // If subscription, track it
-        if (subscriptionId && mapping.payment_type === "recurring") {
-          const sub = await stripe.subscriptions.retrieve(subscriptionId);
-          await supabase.from("subscriptions").upsert(
-            {
-              stripe_subscription_id: subscriptionId,
-              stripe_customer_id: customerId || "",
-              email: finalEmail,
-              area_slug: areaSlug,
-              status: "active",
-              current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "stripe_subscription_id", ignoreDuplicates: false }
-          );
-        }
-
-        // Send welcome email
-        if (settings?.email_enabled && RESEND_API_KEY) {
-          try {
-            const { data: areaInfo } = await supabase
-              .from("member_areas")
-              .select("title, slug, lang_code")
-              .eq("slug", areaSlug)
-              .single();
-
-            const courseName = areaInfo?.title || areaSlug;
-            const lang = (areaInfo as any)?.lang_code || "pt";
-            const t = getLang(lang);
-            const accessLink = `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}/${areaSlug}`;
-
-            const subject = (settings.email_subject_template || t.defaultSubject)
-              .replace(/\{name\}/g, finalName || "")
-              .replace(/\{course_name\}/g, courseName)
-              .replace(/\{email\}/g, finalEmail);
-
-            const bodyHtml = buildEmailHtml(
-              settings.email_body_template || t.defaultBody,
-              {
-                name: finalName || t.fallbackName,
-                course_name: courseName,
-                access_link: accessLink,
-                email: finalEmail,
-              },
-              lang
-            );
-
-            await sendEmail(
-              RESEND_API_KEY,
-              settings.email_from || "noreply@xmembers.app",
-              finalEmail,
-              subject,
-              bodyHtml
-            );
-          } catch (emailErr: unknown) {
-            const errorMessage = emailErr instanceof Error ? emailErr.message : "Unknown email error";
-            await supabase.from("webhook_logs").insert({
-              ...logEntry,
-              area_slug: areaSlug,
-              status: "processed",
-              error_message: `Buyer authorized, but email failed: ${errorMessage}`,
-            });
-            continue;
-          }
-        }
-
-        await supabase.from("webhook_logs").insert({
-          ...logEntry,
-          area_slug: areaSlug,
-          status: "processed",
-        });
+        await processAuthorizedBuyer(supabase, stripe, req, mapping.area_slug, finalEmail, customerName, customerId, subscriptionId, logEntry, mapping.payment_type);
       }
 
       return res.status(200).json({ status: "ok" });
@@ -464,6 +484,79 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           status: "processed",
           error_message: `Subscription ${subId} deleted/canceled`,
         });
+      }
+
+      return res.status(200).json({ status: "ok" });
+    }
+
+    // ─── charge.succeeded (for external checkouts like CheckoutPage.co) ───
+    if (event.type === "charge.succeeded") {
+      const charge = event.data.object as Stripe.Charge;
+      const metadata = charge.metadata || {};
+      const customerEmail = metadata.customer_email || charge.billing_details?.email;
+      const customerName = metadata.customer_name || charge.billing_details?.name;
+
+      logEntry.buyer_email = customerEmail || null;
+      logEntry.buyer_name = customerName || null;
+      logEntry.transaction_id = charge.id;
+
+      if (!customerEmail) {
+        await supabase.from("webhook_logs").insert({
+          ...logEntry,
+          status: "error",
+          error_message: "No customer email in charge metadata or billing_details",
+        });
+        return res.status(200).json({ status: "error", reason: "No email" });
+      }
+
+      const finalEmail = customerEmail.toLowerCase().trim();
+      const finalName = customerName || null;
+
+      // Check if this charge has a price_id (standard Stripe) — if so, use price mapping
+      let priceMatched = false;
+
+      if (charge.payment_intent) {
+        const piId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent.id;
+        try {
+          const pi = await stripe.paymentIntents.retrieve(piId, { expand: ["latest_charge"] });
+          // Check if there's an invoice with line items
+          if (pi.invoice) {
+            const invId = typeof pi.invoice === "string" ? pi.invoice : pi.invoice.id;
+            const invoice = await stripe.invoices.retrieve(invId);
+            const priceIds = (invoice.lines?.data || []).map(l => l.price?.id).filter(Boolean) as string[];
+            if (priceIds.length > 0) {
+              const { data: productMappings } = await supabase
+                .from("stripe_products")
+                .select("area_slug, product_name, payment_type, price_id")
+                .in("price_id", priceIds);
+              if (productMappings && productMappings.length > 0) {
+                priceMatched = true;
+                // Process like checkout.session.completed using price mapping
+                for (const mapping of productMappings) {
+                  await processAuthorizedBuyer(supabase, stripe, req, mapping.area_slug, finalEmail, finalName, null, null, logEntry);
+                }
+              }
+            }
+          }
+        } catch {
+          // Could not resolve price from payment intent, fall through to area mapping
+        }
+      }
+
+      // If no price mapping found, map by webhook_secret → area(s)
+      if (!priceMatched) {
+        if (matchedAreaSlugs.length === 0) {
+          await supabase.from("webhook_logs").insert({
+            ...logEntry,
+            status: "error",
+            error_message: "No areas mapped to this Stripe account",
+          });
+          return res.status(200).json({ status: "error", reason: "No area mapping" });
+        }
+
+        for (const areaSlug of matchedAreaSlugs) {
+          await processAuthorizedBuyer(supabase, stripe, req, areaSlug, finalEmail, finalName, null, null, logEntry);
+        }
       }
 
       return res.status(200).json({ status: "ok" });
