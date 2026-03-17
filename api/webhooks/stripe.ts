@@ -15,15 +15,14 @@ interface VercelResponse extends ServerResponse {
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY!;
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 
 function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-function getStripe() {
-  return new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2025-03-31.basil" as any });
+function getStripe(secretKey: string) {
+  return new Stripe(secretKey, { apiVersion: "2025-03-31.basil" as any });
 }
 
 // ─── Email translations (same as hotmart webhook) ───
@@ -128,7 +127,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const supabase = getSupabase();
-  const stripe = getStripe();
 
   const rawBody = await getRawBody(req);
   const sig = req.headers["stripe-signature"] as string;
@@ -137,23 +135,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Missing stripe-signature header" });
   }
 
-  // We need to find the webhook secret. Try global env first, then per-area.
-  const globalSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  // Fetch all areas that have a stripe_webhook_secret configured
+  const { data: allSettings } = await supabase
+    .from("integration_settings")
+    .select("area_slug, stripe_webhook_secret, stripe_secret_key")
+    .not("stripe_webhook_secret", "is", null);
 
-  let event: Stripe.Event;
-  try {
-    if (globalSecret) {
-      event = stripe.webhooks.constructEvent(rawBody, sig, globalSecret);
-    } else {
-      // Parse body to get area info, then find per-area secret
-      const body = JSON.parse(rawBody.toString());
-      // For now, require global secret
-      return res.status(500).json({ error: "STRIPE_WEBHOOK_SECRET not configured" });
-    }
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return res.status(400).json({ error: `Webhook signature verification failed: ${msg}` });
+  if (!allSettings || allSettings.length === 0) {
+    return res.status(500).json({ error: "No Stripe webhook secrets configured in any area" });
   }
+
+  // Try each webhook secret to verify the signature
+  let event: Stripe.Event | null = null;
+  let matchedSecretKey: string | null = null;
+
+  // Deduplicate by webhook_secret to avoid redundant attempts
+  const uniqueSecrets = new Map<string, string>();
+  for (const s of allSettings) {
+    if (s.stripe_webhook_secret && s.stripe_secret_key) {
+      uniqueSecrets.set(s.stripe_webhook_secret, s.stripe_secret_key);
+    }
+  }
+
+  for (const [webhookSecret, secretKey] of uniqueSecrets) {
+    try {
+      const tempStripe = getStripe(secretKey);
+      event = tempStripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+      matchedSecretKey = secretKey;
+      break;
+    } catch {
+      // Signature didn't match this secret, try next
+    }
+  }
+
+  if (!event || !matchedSecretKey) {
+    return res.status(400).json({ error: "Webhook signature verification failed: no matching secret found" });
+  }
+
+  const stripe = getStripe(matchedSecretKey);
 
   const logEntry = {
     event_type: event.type,

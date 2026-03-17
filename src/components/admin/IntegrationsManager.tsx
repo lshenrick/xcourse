@@ -59,6 +59,7 @@ interface IntegrationSetting {
   email_enabled: boolean;
   payment_provider: "hotmart" | "stripe";
   stripe_webhook_secret: string | null;
+  stripe_secret_key: string | null;
 }
 
 interface StripeProduct {
@@ -131,6 +132,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   const [paymentProvider, setPaymentProvider] = useState<"hotmart" | "stripe">("hotmart");
   const [stripeWebhookSecret, setStripeWebhookSecret] = useState("");
   const [showStripeSecret, setShowStripeSecret] = useState(false);
+  const [stripeSecretKey, setStripeSecretKey] = useState("");
+  const [showStripeKey, setShowStripeKey] = useState(false);
   // Resend API Key agora é global (env var RESEND_API_KEY)
   const [emailFrom, setEmailFrom] = useState("noreply@xmembers.app");
   const [emailSubject, setEmailSubject] = useState("");
@@ -205,6 +208,7 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       setHottok(s.hottok || "");
       setPaymentProvider(s.payment_provider || "hotmart");
       setStripeWebhookSecret(s.stripe_webhook_secret || "");
+      setStripeSecretKey((s as any).stripe_secret_key || "");
       const areaLang = areas.find(a => a.slug === selectedArea)?.lang_code || "pt";
       const defaults = emailDefaults[areaLang] || emailDefaults.pt;
       setEmailFrom(s.email_from || "noreply@xmembers.app");
@@ -217,6 +221,7 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       setHottok("");
       setPaymentProvider("hotmart");
       setStripeWebhookSecret("");
+      setStripeSecretKey("");
       setEmailFrom("noreply@xmembers.app");
       // Use language-specific defaults
       const areaLang = areas.find(a => a.slug === selectedArea)?.lang_code || "pt";
@@ -286,6 +291,7 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       hottok: hottok.trim() || null,
       payment_provider: paymentProvider,
       stripe_webhook_secret: stripeWebhookSecret.trim() || null,
+      stripe_secret_key: stripeSecretKey.trim() || null,
       email_from: emailFrom.trim() || "noreply@xmembers.app",
       email_subject_template: emailSubject.trim(),
       email_body_template: emailBody,
@@ -606,6 +612,24 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
               </div>
               <p className="text-xs text-muted-foreground">
                 Encontre em: Stripe Dashboard &gt; Developers &gt; Webhooks &gt; Signing secret
+              </p>
+
+              <h3 className="text-sm font-medium text-foreground flex items-center gap-2 mt-4">
+                <Key className="h-4 w-4" /> Stripe Secret Key
+              </h3>
+              <div className="flex items-center gap-2">
+                <Input
+                  type={showStripeKey ? "text" : "password"}
+                  placeholder="sk_live_... ou sk_test_..."
+                  value={stripeSecretKey}
+                  onChange={(e) => setStripeSecretKey(e.target.value)}
+                />
+                <Button variant="ghost" size="icon" onClick={() => setShowStripeKey(!showStripeKey)}>
+                  {showStripeKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Encontre em: Stripe Dashboard &gt; Developers &gt; API keys &gt; Secret key
               </p>
             </div>
           )}
