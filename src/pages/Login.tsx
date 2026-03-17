@@ -136,7 +136,7 @@ const Login = () => {
     if (areaInfo.requireAuth) {
       const { data: buyer } = await supabase
         .from("authorized_buyers")
-        .select("id, status")
+        .select("id, status, stripe_subscription_id, payment_provider")
         .eq("email", trimmedEmail)
         .eq("area_slug", areaInfo.slug)
         .eq("status", "active")
@@ -146,6 +146,21 @@ const Login = () => {
         toast.error(notAuthorizedMessages[areaInfo.langCode] || notAuthorizedMessages.pt);
         setLoading(false);
         return;
+      }
+
+      // For Stripe subscriptions, verify the subscription is still active
+      if (buyer.payment_provider === "stripe" && buyer.stripe_subscription_id) {
+        const { data: sub } = await supabase
+          .from("subscriptions")
+          .select("status")
+          .eq("stripe_subscription_id", buyer.stripe_subscription_id)
+          .maybeSingle();
+
+        if (sub && sub.status !== "active" && sub.status !== "past_due") {
+          toast.error(notAuthorizedMessages[areaInfo.langCode] || notAuthorizedMessages.pt);
+          setLoading(false);
+          return;
+        }
       }
     }
 

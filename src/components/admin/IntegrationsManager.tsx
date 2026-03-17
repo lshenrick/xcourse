@@ -57,6 +57,27 @@ interface IntegrationSetting {
   email_body_template: string;
   webhook_enabled: boolean;
   email_enabled: boolean;
+  payment_provider: "hotmart" | "stripe";
+  stripe_webhook_secret: string | null;
+}
+
+interface StripeProduct {
+  id: string;
+  price_id: string;
+  product_name: string | null;
+  area_slug: string;
+  payment_type: "one_time" | "recurring";
+}
+
+interface Subscription {
+  id: string;
+  stripe_subscription_id: string;
+  stripe_customer_id: string;
+  email: string;
+  area_slug: string;
+  status: string;
+  current_period_end: string | null;
+  created_at: string;
 }
 
 interface HotmartProduct {
@@ -107,6 +128,9 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   // Form states
   const [hottok, setHottok] = useState("");
   const [showHottok, setShowHottok] = useState(false);
+  const [paymentProvider, setPaymentProvider] = useState<"hotmart" | "stripe">("hotmart");
+  const [stripeWebhookSecret, setStripeWebhookSecret] = useState("");
+  const [showStripeSecret, setShowStripeSecret] = useState(false);
   // Resend API Key agora é global (env var RESEND_API_KEY)
   const [emailFrom, setEmailFrom] = useState("noreply@xmembers.app");
   const [emailSubject, setEmailSubject] = useState("");
@@ -114,9 +138,18 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   const [webhookEnabled, setWebhookEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
 
-  // New product form
+  // Hotmart product form
   const [newProductId, setNewProductId] = useState("");
   const [newProductName, setNewProductName] = useState("");
+
+  // Stripe product form
+  const [stripeProducts, setStripeProducts] = useState<StripeProduct[]>([]);
+  const [newStripePriceId, setNewStripePriceId] = useState("");
+  const [newStripeProductName, setNewStripeProductName] = useState("");
+  const [newStripePaymentType, setNewStripePaymentType] = useState<"one_time" | "recurring">("one_time");
+
+  // Subscriptions
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
 
   // New buyer form
   const [newBuyerEmail, setNewBuyerEmail] = useState("");
@@ -154,6 +187,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
     if (!selectedArea) return;
     fetchSettings();
     fetchProducts();
+    fetchStripeProducts();
+    fetchSubscriptions();
     fetchLogs();
     fetchBuyers();
   }, [selectedArea]);
@@ -168,6 +203,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       const s = data as IntegrationSetting;
       setSettings(s);
       setHottok(s.hottok || "");
+      setPaymentProvider(s.payment_provider || "hotmart");
+      setStripeWebhookSecret(s.stripe_webhook_secret || "");
       const areaLang = areas.find(a => a.slug === selectedArea)?.lang_code || "pt";
       const defaults = emailDefaults[areaLang] || emailDefaults.pt;
       setEmailFrom(s.email_from || "noreply@xmembers.app");
@@ -178,6 +215,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
     } else {
       setSettings(null);
       setHottok("");
+      setPaymentProvider("hotmart");
+      setStripeWebhookSecret("");
       setEmailFrom("noreply@xmembers.app");
       // Use language-specific defaults
       const areaLang = areas.find(a => a.slug === selectedArea)?.lang_code || "pt";
@@ -220,12 +259,33 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
     setBuyerPage(1);
   };
 
+  const fetchStripeProducts = async () => {
+    const { data } = await supabase
+      .from("stripe_products")
+      .select("*")
+      .eq("area_slug", selectedArea)
+      .order("created_at");
+    setStripeProducts((data || []) as StripeProduct[]);
+  };
+
+  const fetchSubscriptions = async () => {
+    const { data } = await supabase
+      .from("subscriptions")
+      .select("*")
+      .eq("area_slug", selectedArea)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    setSubscriptions((data || []) as Subscription[]);
+  };
+
   // Save settings
   const handleSaveSettings = async () => {
     setSaving(true);
     const payload = {
       area_slug: selectedArea,
       hottok: hottok.trim() || null,
+      payment_provider: paymentProvider,
+      stripe_webhook_secret: stripeWebhookSecret.trim() || null,
       email_from: emailFrom.trim() || "noreply@xmembers.app",
       email_subject_template: emailSubject.trim(),
       email_body_template: emailBody,
@@ -273,6 +333,36 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
     await supabase.from("hotmart_products").delete().eq("id", id);
     toast.success("Produto removido");
     fetchProducts();
+  };
+
+  // Add Stripe product
+  const handleAddStripeProduct = async () => {
+    if (!newStripePriceId.trim()) {
+      toast.error("Informe o Price ID do Stripe");
+      return;
+    }
+    const { error } = await supabase.from("stripe_products").insert({
+      price_id: newStripePriceId.trim(),
+      product_name: newStripeProductName.trim() || null,
+      area_slug: selectedArea,
+      payment_type: newStripePaymentType,
+    });
+    if (error) {
+      toast.error(error.message.includes("duplicate") ? "Este price já está mapeado" : "Erro: " + error.message);
+    } else {
+      toast.success("Produto Stripe adicionado!");
+      setNewStripePriceId("");
+      setNewStripeProductName("");
+      setNewStripePaymentType("one_time");
+      fetchStripeProducts();
+    }
+  };
+
+  // Remove Stripe product
+  const handleRemoveStripeProduct = async (id: string) => {
+    await supabase.from("stripe_products").delete().eq("id", id);
+    toast.success("Produto Stripe removido");
+    fetchStripeProducts();
   };
 
   // Add buyer manually
@@ -353,8 +443,9 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   };
 
   // Copy webhook URL
-  const copyWebhookUrl = () => {
-    const url = `${window.location.origin}/api/webhooks/hotmart`;
+  const copyWebhookUrl = (provider?: string) => {
+    const p = provider || paymentProvider;
+    const url = `${window.location.origin}/api/webhooks/${p === "stripe" ? "stripe" : "hotmart"}`;
     navigator.clipboard.writeText(url);
     toast.success("URL copiada!");
   };
@@ -396,8 +487,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Integrações Hotmart</h2>
-          <p className="text-sm text-muted-foreground">Configure webhooks, emails automáticos e gerencie compradores</p>
+          <h2 className="text-lg font-semibold text-foreground">Integrações de Pagamento</h2>
+          <p className="text-sm text-muted-foreground">Configure Hotmart ou Stripe, webhooks, emails automáticos e gerencie compradores</p>
         </div>
         <Select value={selectedArea} onValueChange={setSelectedArea}>
           <SelectTrigger className="w-[260px]">
@@ -421,53 +512,106 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
           <TabsTrigger value="settings" className="gap-2"><Key className="h-4 w-4" /> Configurações</TabsTrigger>
           <TabsTrigger value="products" className="gap-2"><Package className="h-4 w-4" /> Produtos</TabsTrigger>
           <TabsTrigger value="buyers" className="gap-2"><ShieldCheck className="h-4 w-4" /> Compradores</TabsTrigger>
+          <TabsTrigger value="subscriptions" className="gap-2"><RefreshCw className="h-4 w-4" /> Assinaturas</TabsTrigger>
           <TabsTrigger value="email" className="gap-2"><Mail className="h-4 w-4" /> Email</TabsTrigger>
           <TabsTrigger value="logs" className="gap-2"><ScrollText className="h-4 w-4" /> Logs</TabsTrigger>
         </TabsList>
 
         {/* SETTINGS TAB */}
         <TabsContent value="settings" className="space-y-4">
+          {/* Payment Provider Selection */}
+          <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+            <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Package className="h-4 w-4" /> Provedor de Pagamento
+            </h3>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPaymentProvider("hotmart")}
+                className={`flex-1 p-4 rounded-lg border-2 transition-colors text-left ${paymentProvider === "hotmart" ? "border-orange-500 bg-orange-500/10" : "border-border hover:border-muted-foreground/30"}`}
+              >
+                <p className="font-semibold text-sm text-foreground">Hotmart</p>
+                <p className="text-xs text-muted-foreground mt-1">Checkout via iframe com ofuscacao de email</p>
+              </button>
+              <button
+                onClick={() => setPaymentProvider("stripe")}
+                className={`flex-1 p-4 rounded-lg border-2 transition-colors text-left ${paymentProvider === "stripe" ? "border-purple-500 bg-purple-500/10" : "border-border hover:border-muted-foreground/30"}`}
+              >
+                <p className="font-semibold text-sm text-foreground">Stripe</p>
+                <p className="text-xs text-muted-foreground mt-1">Payment Links com redirect e suporte a assinaturas</p>
+              </button>
+            </div>
+          </div>
+
           {/* Webhook URL */}
           <div className="bg-card border border-border rounded-lg p-5 space-y-4">
             <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-              <Link2 className="h-4 w-4" /> URL do Webhook
+              <Link2 className="h-4 w-4" /> URL do Webhook ({paymentProvider === "stripe" ? "Stripe" : "Hotmart"})
             </h3>
             <div className="flex items-center gap-2">
               <Input
                 readOnly
-                value={`${window.location.origin}/api/webhooks/hotmart`}
+                value={`${window.location.origin}/api/webhooks/${paymentProvider === "stripe" ? "stripe" : "hotmart"}`}
                 className="font-mono text-xs bg-muted"
               />
-              <Button variant="outline" size="sm" onClick={copyWebhookUrl} className="gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/${paymentProvider === "stripe" ? "stripe" : "hotmart"}`);
+                toast.success("URL copiada!");
+              }} className="gap-2 shrink-0">
                 <Copy className="h-4 w-4" /> Copiar
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Cole esta URL na Hotmart em: Ferramentas &gt; Webhooks &gt; Nova URL &gt; Cole &gt; Selecione "PURCHASE_APPROVED"
+              {paymentProvider === "stripe"
+                ? "Cole esta URL no Stripe Dashboard em: Developers > Webhooks > Add endpoint. Eventos: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, charge.refunded"
+                : "Cole esta URL na Hotmart em: Ferramentas > Webhooks > Nova URL > Cole > Selecione \"PURCHASE_APPROVED\""}
             </p>
           </div>
 
-          {/* Hottok */}
-          <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-            <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-              <Key className="h-4 w-4" /> Token Hotmart (Hottok)
-            </h3>
-            <div className="flex items-center gap-2">
-              <Input
-                type={showHottok ? "text" : "password"}
-                placeholder="Cole aqui o Hottok da Hotmart"
-                value={hottok}
-                onChange={(e) => setHottok(e.target.value)}
-              />
-              <Button variant="ghost" size="icon" onClick={() => setShowHottok(!showHottok)}>
-                {showHottok ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
+          {/* Provider-specific config */}
+          {paymentProvider === "hotmart" ? (
+            <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+              <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Key className="h-4 w-4" /> Token Hotmart (Hottok)
+              </h3>
+              <div className="flex items-center gap-2">
+                <Input
+                  type={showHottok ? "text" : "password"}
+                  placeholder="Cole aqui o Hottok da Hotmart"
+                  value={hottok}
+                  onChange={(e) => setHottok(e.target.value)}
+                />
+                <Button variant="ghost" size="icon" onClick={() => setShowHottok(!showHottok)}>
+                  {showHottok ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Encontre em: Hotmart &gt; Ferramentas &gt; Webhooks &gt; Configurações &gt; Hottok
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Encontre em: Hotmart &gt; Ferramentas &gt; Webhooks &gt; Configurações &gt; Hottok
-            </p>
+          ) : (
+            <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+              <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Key className="h-4 w-4" /> Stripe Webhook Secret
+              </h3>
+              <div className="flex items-center gap-2">
+                <Input
+                  type={showStripeSecret ? "text" : "password"}
+                  placeholder="whsec_..."
+                  value={stripeWebhookSecret}
+                  onChange={(e) => setStripeWebhookSecret(e.target.value)}
+                />
+                <Button variant="ghost" size="icon" onClick={() => setShowStripeSecret(!showStripeSecret)}>
+                  {showStripeSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Encontre em: Stripe Dashboard &gt; Developers &gt; Webhooks &gt; Signing secret
+              </p>
+            </div>
+          )}
 
-            <div className="flex items-center gap-4 pt-2">
+          <div className="bg-card border border-border rounded-lg p-5">
+            <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={webhookEnabled} onChange={(e) => setWebhookEnabled(e.target.checked)} className="rounded" />
                 <span className="text-sm text-foreground">Webhook ativo</span>
@@ -540,6 +684,128 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
                   <Button variant="ghost" size="sm" onClick={() => handleRemoveProduct(p.id)} className="text-destructive hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* STRIPE PRODUCTS */}
+          <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+            <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Plus className="h-4 w-4" /> Mapear Produto Stripe
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Vincule um Price ID do Stripe a esta área. Encontre em: Stripe Dashboard &gt; Products &gt; Seu Produto &gt; Pricing &gt; Price ID (price_xxx)
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">Price ID*</label>
+                <Input
+                  placeholder="Ex: price_1N..."
+                  value={newStripePriceId}
+                  onChange={(e) => setNewStripePriceId(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Nome (opcional)</label>
+                <Input
+                  placeholder="Ex: Curso Completo"
+                  value={newStripeProductName}
+                  onChange={(e) => setNewStripeProductName(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Tipo</label>
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => setNewStripePaymentType("one_time")}
+                    className={`px-3 py-2 rounded-md text-xs font-medium border ${newStripePaymentType === "one_time" ? "bg-primary/10 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                  >
+                    Pagamento único
+                  </button>
+                  <button
+                    onClick={() => setNewStripePaymentType("recurring")}
+                    className={`px-3 py-2 rounded-md text-xs font-medium border ${newStripePaymentType === "recurring" ? "bg-primary/10 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                  >
+                    Assinatura
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleAddStripeProduct} className="gap-2">
+                <Plus className="h-4 w-4" /> Adicionar Produto Stripe
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {stripeProducts.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-muted-foreground text-sm">Nenhum produto Stripe mapeado para esta área.</p>
+              </div>
+            ) : (
+              stripeProducts.map((p) => (
+                <div key={p.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Package className="h-5 w-5 text-purple-400" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {p.product_name || "Produto Stripe"}
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono">Price: {p.price_id}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={`text-xs ${p.payment_type === "recurring" ? "border-purple-500/40 text-purple-400" : "border-green-500/40 text-green-400"}`}>
+                      {p.payment_type === "recurring" ? "Assinatura" : "Único"}
+                    </Badge>
+                    <Button variant="ghost" size="sm" onClick={() => handleRemoveStripeProduct(p.id)} className="text-destructive hover:text-destructive">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        {/* SUBSCRIPTIONS TAB */}
+        <TabsContent value="subscriptions" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">{subscriptions.length} assinatura{subscriptions.length !== 1 ? "s" : ""}</p>
+            <Button variant="outline" size="sm" onClick={fetchSubscriptions} className="gap-2">
+              <RefreshCw className="h-4 w-4" /> Atualizar
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {subscriptions.length === 0 ? (
+              <div className="text-center py-12">
+                <RefreshCw className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">Nenhuma assinatura Stripe registrada.</p>
+              </div>
+            ) : (
+              subscriptions.map((sub) => (
+                <div key={sub.id} className="bg-card border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{sub.email}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{sub.stripe_subscription_id}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant={sub.status === "active" ? "default" : sub.status === "past_due" ? "secondary" : "destructive"} className="text-xs">
+                        {sub.status === "active" ? "Ativa" : sub.status === "past_due" ? "Atrasada" : sub.status === "canceled" ? "Cancelada" : sub.status}
+                      </Badge>
+                      {sub.current_period_end && (
+                        <span className="text-xs text-muted-foreground">
+                          até {new Date(sub.current_period_end).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))
             )}

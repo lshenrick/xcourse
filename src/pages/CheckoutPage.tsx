@@ -81,6 +81,8 @@ const CheckoutPage = () => {
   const [_0x1, _0x1s] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [paymentProvider, setPaymentProvider] = useState<"hotmart" | "stripe">("hotmart");
+  const [stripePaymentLink, setStripePaymentLink] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -100,25 +102,33 @@ const CheckoutPage = () => {
     if (!slug) { setNotFound(true); setLoading(false); return; }
     supabase
       .from("checkout_pages")
-      .select("offer_code")
+      .select("offer_code, payment_provider, stripe_payment_link")
       .eq("slug", slug)
       .eq("active", true)
       .single()
       .then(({ data, error }) => {
         if (error || !data) { setNotFound(true); }
         else {
-          const raw = (data as any).offer_code || "";
-          const url = raw.startsWith("http") ? raw : `https://pay.hotmart.com/${raw}`;
-          try {
-            const u = new URL(url);
-            _0x1s([
-              _0xe(u.origin + u.pathname.split("/").slice(0, -1).join("/") + "/"),
-              _0xe(u.pathname.split("/").pop() || ""),
-              _0xe(u.search || ""),
-            ]);
-          } catch {
-            const th = Math.ceil(url.length / 3);
-            _0x1s([_0xe(url.slice(0, th)), _0xe(url.slice(th, th * 2)), _0xe(url.slice(th * 2))]);
+          const provider = (data as any).payment_provider || "hotmart";
+          setPaymentProvider(provider);
+
+          if (provider === "stripe") {
+            setStripePaymentLink((data as any).stripe_payment_link || null);
+            _0x1s(["stripe"]); // Signal that we have a valid checkout
+          } else {
+            const raw = (data as any).offer_code || "";
+            const url = raw.startsWith("http") ? raw : `https://pay.hotmart.com/${raw}`;
+            try {
+              const u = new URL(url);
+              _0x1s([
+                _0xe(u.origin + u.pathname.split("/").slice(0, -1).join("/") + "/"),
+                _0xe(u.pathname.split("/").pop() || ""),
+                _0xe(u.search || ""),
+              ]);
+            } catch {
+              const th = Math.ceil(url.length / 3);
+              _0x1s([_0xe(url.slice(0, th)), _0xe(url.slice(th, th * 2)), _0xe(url.slice(th * 2))]);
+            }
           }
         }
         setLoading(false);
@@ -168,7 +178,28 @@ const CheckoutPage = () => {
       setErrEmailConfirm(t.errEmailConfirm); valid = false;
     } else setErrEmailConfirm("");
     if (valid) {
-      // Save real email mapping before Hotmart obfuscation (fire-and-forget)
+      if (paymentProvider === "stripe" && stripePaymentLink) {
+        // Save lead (fire-and-forget)
+        fetch("/api/checkout-lead", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            real_email: email.trim(),
+            obfuscated_email: email.trim(), // No obfuscation needed for Stripe
+            name: name.trim(),
+            checkout_slug: slug,
+          }),
+        }).catch(() => {});
+
+        // Redirect to Stripe Payment Link with prefilled email
+        const url = new URL(stripePaymentLink);
+        url.searchParams.set("prefilled_email", email.trim());
+        url.searchParams.set("client_reference_id", slug || "");
+        window.location.href = url.toString();
+        return;
+      }
+
+      // Hotmart flow: Save real email mapping before obfuscation (fire-and-forget)
       fetch("/api/checkout-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

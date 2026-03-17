@@ -11,6 +11,8 @@ interface CheckoutPage {
   slug: string;
   title: string;
   offer_code: string;
+  payment_provider: "hotmart" | "stripe";
+  stripe_payment_link: string | null;
   owner_id: string;
   active: boolean;
   created_at: string;
@@ -25,9 +27,9 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
   const [pages, setPages] = useState<CheckoutPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{ slug: string; offer_code: string }>({ slug: "", offer_code: "" });
+  const [editForm, setEditForm] = useState<{ slug: string; offer_code: string; payment_provider: "hotmart" | "stripe"; stripe_payment_link: string }>({ slug: "", offer_code: "", payment_provider: "hotmart", stripe_payment_link: "" });
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ slug: "", offer_code: "" });
+  const [newForm, setNewForm] = useState({ slug: "", offer_code: "", payment_provider: "hotmart" as "hotmart" | "stripe", stripe_payment_link: "" });
   const [saving, setSaving] = useState(false);
 
   const fetchPages = async () => {
@@ -44,8 +46,16 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
   useEffect(() => { fetchPages(); }, []);
 
   const handleCreate = async () => {
-    if (!newForm.slug.trim() || !newForm.offer_code.trim()) {
-      toast.error("Preencha o slug e o link de pagamento");
+    if (!newForm.slug.trim()) {
+      toast.error("Preencha o slug");
+      return;
+    }
+    if (newForm.payment_provider === "hotmart" && !newForm.offer_code.trim()) {
+      toast.error("Preencha o link de pagamento Hotmart");
+      return;
+    }
+    if (newForm.payment_provider === "stripe" && !newForm.stripe_payment_link.trim()) {
+      toast.error("Preencha o Stripe Payment Link");
       return;
     }
     const slug = newForm.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
@@ -53,7 +63,9 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
     const { error } = await supabase.from("checkout_pages").insert({
       slug,
       title: slug,
-      offer_code: newForm.offer_code.trim(),
+      offer_code: newForm.payment_provider === "hotmart" ? newForm.offer_code.trim() : "",
+      payment_provider: newForm.payment_provider,
+      stripe_payment_link: newForm.payment_provider === "stripe" ? newForm.stripe_payment_link.trim() : null,
       owner_id: adminUserId,
     });
     setSaving(false);
@@ -62,19 +74,27 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
       return;
     }
     toast.success("Página de checkout criada!");
-    setNewForm({ slug: "", offer_code: "" });
+    setNewForm({ slug: "", offer_code: "", payment_provider: "hotmart", stripe_payment_link: "" });
     setShowNew(false);
     fetchPages();
   };
 
   const startEdit = (page: CheckoutPage) => {
     setEditingId(page.id);
-    setEditForm({ slug: page.slug, offer_code: page.offer_code });
+    setEditForm({ slug: page.slug, offer_code: page.offer_code, payment_provider: page.payment_provider || "hotmart", stripe_payment_link: page.stripe_payment_link || "" });
   };
 
   const handleSaveEdit = async () => {
-    if (!editingId || !editForm.slug?.trim() || !editForm.offer_code?.trim()) {
-      toast.error("Preencha o slug e o link de pagamento");
+    if (!editingId || !editForm.slug?.trim()) {
+      toast.error("Preencha o slug");
+      return;
+    }
+    if (editForm.payment_provider === "hotmart" && !editForm.offer_code?.trim()) {
+      toast.error("Preencha o link de pagamento Hotmart");
+      return;
+    }
+    if (editForm.payment_provider === "stripe" && !editForm.stripe_payment_link?.trim()) {
+      toast.error("Preencha o Stripe Payment Link");
       return;
     }
     setSaving(true);
@@ -82,7 +102,9 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
     const { error } = await supabase.from("checkout_pages").update({
       slug,
       title: slug,
-      offer_code: editForm.offer_code.trim(),
+      offer_code: editForm.payment_provider === "hotmart" ? editForm.offer_code.trim() : "",
+      payment_provider: editForm.payment_provider,
+      stripe_payment_link: editForm.payment_provider === "stripe" ? editForm.stripe_payment_link.trim() : null,
     }).eq("id", editingId);
     setSaving(false);
     if (error) {
@@ -158,17 +180,50 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
           </div>
 
           <div>
-            <label className="text-xs text-zinc-400 mb-1 block">Link de Pagamento (Hotmart)</label>
-            <Input
-              value={newForm.offer_code}
-              onChange={e => setNewForm({ ...newForm, offer_code: e.target.value })}
-              placeholder="Ex: https://pay.hotmart.com/ABC123DEF"
-              className="bg-zinc-900 border-zinc-700"
-            />
-            <p className="text-xs text-zinc-500 mt-1">
-              Cole o link completo do checkout. Encontre em Hotmart → Produto → Hotlinks.
-            </p>
+            <label className="text-xs text-zinc-400 mb-1 block">Provedor de Pagamento</label>
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={() => setNewForm({ ...newForm, payment_provider: "hotmart" })}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${newForm.payment_provider === "hotmart" ? "bg-orange-500/20 border-orange-500/40 text-orange-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-zinc-600"}`}
+              >
+                Hotmart
+              </button>
+              <button
+                onClick={() => setNewForm({ ...newForm, payment_provider: "stripe" })}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${newForm.payment_provider === "stripe" ? "bg-purple-500/20 border-purple-500/40 text-purple-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-zinc-600"}`}
+              >
+                Stripe
+              </button>
+            </div>
           </div>
+
+          {newForm.payment_provider === "hotmart" ? (
+            <div>
+              <label className="text-xs text-zinc-400 mb-1 block">Link de Pagamento (Hotmart)</label>
+              <Input
+                value={newForm.offer_code}
+                onChange={e => setNewForm({ ...newForm, offer_code: e.target.value })}
+                placeholder="Ex: https://pay.hotmart.com/ABC123DEF"
+                className="bg-zinc-900 border-zinc-700"
+              />
+              <p className="text-xs text-zinc-500 mt-1">
+                Cole o link completo do checkout. Encontre em Hotmart &rarr; Produto &rarr; Hotlinks.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs text-zinc-400 mb-1 block">Stripe Payment Link</label>
+              <Input
+                value={newForm.stripe_payment_link}
+                onChange={e => setNewForm({ ...newForm, stripe_payment_link: e.target.value })}
+                placeholder="Ex: https://buy.stripe.com/abc123"
+                className="bg-zinc-900 border-zinc-700"
+              />
+              <p className="text-xs text-zinc-500 mt-1">
+                Crie em Stripe Dashboard &rarr; Payment Links &rarr; Novo link. Cole a URL aqui.
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-2">
             <Button onClick={handleCreate} disabled={saving} className="gap-2">
@@ -206,13 +261,42 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-zinc-400 mb-1 block">Link de Pagamento</label>
-                    <Input
-                      value={editForm.offer_code}
-                      onChange={e => setEditForm({ ...editForm, offer_code: e.target.value })}
-                      className="bg-zinc-900 border-zinc-700"
-                    />
+                    <label className="text-xs text-zinc-400 mb-1 block">Provedor de Pagamento</label>
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        onClick={() => setEditForm({ ...editForm, payment_provider: "hotmart" })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${editForm.payment_provider === "hotmart" ? "bg-orange-500/20 border-orange-500/40 text-orange-400" : "bg-zinc-900 border-zinc-700 text-zinc-400"}`}
+                      >
+                        Hotmart
+                      </button>
+                      <button
+                        onClick={() => setEditForm({ ...editForm, payment_provider: "stripe" })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${editForm.payment_provider === "stripe" ? "bg-purple-500/20 border-purple-500/40 text-purple-400" : "bg-zinc-900 border-zinc-700 text-zinc-400"}`}
+                      >
+                        Stripe
+                      </button>
+                    </div>
                   </div>
+                  {editForm.payment_provider === "hotmart" ? (
+                    <div>
+                      <label className="text-xs text-zinc-400 mb-1 block">Link de Pagamento (Hotmart)</label>
+                      <Input
+                        value={editForm.offer_code}
+                        onChange={e => setEditForm({ ...editForm, offer_code: e.target.value })}
+                        className="bg-zinc-900 border-zinc-700"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-xs text-zinc-400 mb-1 block">Stripe Payment Link</label>
+                      <Input
+                        value={editForm.stripe_payment_link}
+                        onChange={e => setEditForm({ ...editForm, stripe_payment_link: e.target.value })}
+                        className="bg-zinc-900 border-zinc-700"
+                        placeholder="https://buy.stripe.com/abc123"
+                      />
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <Button onClick={handleSaveEdit} disabled={saving} size="sm" className="gap-2">
                       <Save className="h-3 w-3" /> {saving ? "Salvando..." : "Salvar"}
@@ -231,8 +315,13 @@ export function CheckoutPagesManager({ adminUserId, isSuperAdmin }: CheckoutPage
                       <Badge variant={page.active ? "default" : "secondary"} className="text-xs shrink-0">
                         {page.active ? "Ativo" : "Inativo"}
                       </Badge>
+                      <Badge variant="outline" className={`text-xs shrink-0 ${page.payment_provider === "stripe" ? "border-purple-500/40 text-purple-400" : "border-orange-500/40 text-orange-400"}`}>
+                        {page.payment_provider === "stripe" ? "Stripe" : "Hotmart"}
+                      </Badge>
                     </div>
-                    <p className="text-xs text-zinc-500 mt-1 truncate">{page.offer_code}</p>
+                    <p className="text-xs text-zinc-500 mt-1 truncate">
+                      {page.payment_provider === "stripe" ? page.stripe_payment_link : page.offer_code}
+                    </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Button variant="ghost" size="sm" onClick={() => copyUrl(page.slug)} title="Copiar link">
