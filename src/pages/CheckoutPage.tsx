@@ -107,7 +107,7 @@ const CheckoutPage = () => {
       .eq("active", true)
       .single()
       .then(({ data, error }) => {
-        if (error || !data) { setNotFound(true); }
+        if (error || !data) { console.error("[Checkout] slug=", slug, "error=", error, "data=", data); setNotFound(true); }
         else {
           const provider = (data as any).payment_provider || "hotmart";
           setPaymentProvider(provider);
