@@ -619,6 +619,54 @@ export type Database = {
         }
         Relationships: []
       }
+      monetizze_products: {
+        Row: {
+          id: string
+          product_id: string
+          product_name: string | null
+          area_slug: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          product_name?: string | null
+          area_slug: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          product_name?: string | null
+          area_slug?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      clickbank_products: {
+        Row: {
+          id: string
+          item_no: string
+          product_name: string | null
+          area_slug: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          item_no: string
+          product_name?: string | null
+          area_slug: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          item_no?: string
+          product_name?: string | null
+          area_slug?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           id: string

@@ -57,9 +57,11 @@ interface IntegrationSetting {
   email_body_template: string;
   webhook_enabled: boolean;
   email_enabled: boolean;
-  payment_provider: "hotmart" | "stripe";
+  payment_provider: "hotmart" | "stripe" | "monetizze" | "clickbank";
   stripe_webhook_secret: string | null;
   stripe_secret_key: string | null;
+  monetizze_token: string | null;
+  clickbank_secret_key: string | null;
 }
 
 interface StripeProduct {
@@ -84,6 +86,20 @@ interface Subscription {
 interface HotmartProduct {
   id: string;
   product_id: string;
+  product_name: string | null;
+  area_slug: string;
+}
+
+interface MonetizzeProduct {
+  id: string;
+  product_id: string;
+  product_name: string | null;
+  area_slug: string;
+}
+
+interface ClickBankProduct {
+  id: string;
+  item_no: string;
   product_name: string | null;
   area_slug: string;
 }
@@ -129,11 +145,15 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   // Form states
   const [hottok, setHottok] = useState("");
   const [showHottok, setShowHottok] = useState(false);
-  const [paymentProvider, setPaymentProvider] = useState<"hotmart" | "stripe">("hotmart");
+  const [paymentProvider, setPaymentProvider] = useState<"hotmart" | "stripe" | "monetizze" | "clickbank">("hotmart");
   const [stripeWebhookSecret, setStripeWebhookSecret] = useState("");
   const [showStripeSecret, setShowStripeSecret] = useState(false);
   const [stripeSecretKey, setStripeSecretKey] = useState("");
   const [showStripeKey, setShowStripeKey] = useState(false);
+  const [monetizzeToken, setMonetizzeToken] = useState("");
+  const [showMonetizzeToken, setShowMonetizzeToken] = useState(false);
+  const [clickbankSecretKey, setClickbankSecretKey] = useState("");
+  const [showClickbankSecret, setShowClickbankSecret] = useState(false);
   // Resend API Key agora é global (env var RESEND_API_KEY)
   const [emailFrom, setEmailFrom] = useState("noreply@xmembers.app");
   const [emailSubject, setEmailSubject] = useState("");
@@ -150,6 +170,16 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   const [newStripePriceId, setNewStripePriceId] = useState("");
   const [newStripeProductName, setNewStripeProductName] = useState("");
   const [newStripePaymentType, setNewStripePaymentType] = useState<"one_time" | "recurring">("one_time");
+
+  // Monetizze product form
+  const [monetizzeProducts, setMonetizzeProducts] = useState<MonetizzeProduct[]>([]);
+  const [newMonetizzeProductId, setNewMonetizzeProductId] = useState("");
+  const [newMonetizzeProductName, setNewMonetizzeProductName] = useState("");
+
+  // ClickBank product form
+  const [clickbankProducts, setClickbankProducts] = useState<ClickBankProduct[]>([]);
+  const [newClickbankItemNo, setNewClickbankItemNo] = useState("");
+  const [newClickbankProductName, setNewClickbankProductName] = useState("");
 
   // Subscriptions
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -191,6 +221,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
     fetchSettings();
     fetchProducts();
     fetchStripeProducts();
+    fetchMonetizzeProducts();
+    fetchClickbankProducts();
     fetchSubscriptions();
     fetchLogs();
     fetchBuyers();
@@ -209,6 +241,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       setPaymentProvider(s.payment_provider || "hotmart");
       setStripeWebhookSecret(s.stripe_webhook_secret || "");
       setStripeSecretKey((s as any).stripe_secret_key || "");
+      setMonetizzeToken((s as any).monetizze_token || "");
+      setClickbankSecretKey((s as any).clickbank_secret_key || "");
       const areaLang = areas.find(a => a.slug === selectedArea)?.lang_code || "pt";
       const defaults = emailDefaults[areaLang] || emailDefaults.pt;
       setEmailFrom(s.email_from || "noreply@xmembers.app");
@@ -222,6 +256,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       setPaymentProvider("hotmart");
       setStripeWebhookSecret("");
       setStripeSecretKey("");
+      setMonetizzeToken("");
+      setClickbankSecretKey("");
       setEmailFrom("noreply@xmembers.app");
       // Use language-specific defaults
       const areaLang = areas.find(a => a.slug === selectedArea)?.lang_code || "pt";
@@ -283,6 +319,24 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
     setSubscriptions((data || []) as Subscription[]);
   };
 
+  const fetchMonetizzeProducts = async () => {
+    const { data } = await supabase
+      .from("monetizze_products")
+      .select("*")
+      .eq("area_slug", selectedArea)
+      .order("created_at");
+    setMonetizzeProducts((data || []) as MonetizzeProduct[]);
+  };
+
+  const fetchClickbankProducts = async () => {
+    const { data } = await supabase
+      .from("clickbank_products")
+      .select("*")
+      .eq("area_slug", selectedArea)
+      .order("created_at");
+    setClickbankProducts((data || []) as ClickBankProduct[]);
+  };
+
   // Save settings
   const handleSaveSettings = async () => {
     setSaving(true);
@@ -292,6 +346,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       payment_provider: paymentProvider,
       stripe_webhook_secret: stripeWebhookSecret.trim() || null,
       stripe_secret_key: stripeSecretKey.trim() || null,
+      monetizze_token: monetizzeToken.trim() || null,
+      clickbank_secret_key: clickbankSecretKey.trim() || null,
       email_from: emailFrom.trim() || "noreply@xmembers.app",
       email_subject_template: emailSubject.trim(),
       email_body_template: emailBody,
@@ -369,6 +425,60 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
     await supabase.from("stripe_products").delete().eq("id", id);
     toast.success("Produto Stripe removido");
     fetchStripeProducts();
+  };
+
+  // Add Monetizze product
+  const handleAddMonetizzeProduct = async () => {
+    if (!newMonetizzeProductId.trim()) {
+      toast.error("Informe o ID do produto Monetizze");
+      return;
+    }
+    const { error } = await supabase.from("monetizze_products").insert({
+      product_id: newMonetizzeProductId.trim(),
+      product_name: newMonetizzeProductName.trim() || null,
+      area_slug: selectedArea,
+    });
+    if (error) {
+      toast.error(error.message.includes("duplicate") ? "Este produto já está mapeado" : "Erro: " + error.message);
+    } else {
+      toast.success("Produto Monetizze adicionado!");
+      setNewMonetizzeProductId("");
+      setNewMonetizzeProductName("");
+      fetchMonetizzeProducts();
+    }
+  };
+
+  const handleRemoveMonetizzeProduct = async (id: string) => {
+    await supabase.from("monetizze_products").delete().eq("id", id);
+    toast.success("Produto Monetizze removido");
+    fetchMonetizzeProducts();
+  };
+
+  // Add ClickBank product
+  const handleAddClickbankProduct = async () => {
+    if (!newClickbankItemNo.trim()) {
+      toast.error("Informe o Item Number do ClickBank");
+      return;
+    }
+    const { error } = await supabase.from("clickbank_products").insert({
+      item_no: newClickbankItemNo.trim(),
+      product_name: newClickbankProductName.trim() || null,
+      area_slug: selectedArea,
+    });
+    if (error) {
+      toast.error(error.message.includes("duplicate") ? "Este item já está mapeado" : "Erro: " + error.message);
+    } else {
+      toast.success("Produto ClickBank adicionado!");
+      setNewClickbankItemNo("");
+      setNewClickbankProductName("");
+      fetchClickbankProducts();
+    }
+  };
+
+  const handleRemoveClickbankProduct = async (id: string) => {
+    await supabase.from("clickbank_products").delete().eq("id", id);
+    toast.success("Produto ClickBank removido");
+    fetchClickbankProducts();
   };
 
   // Add buyer manually
@@ -451,7 +561,7 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
   // Copy webhook URL
   const copyWebhookUrl = (provider?: string) => {
     const p = provider || paymentProvider;
-    const url = `${window.location.origin}/api/webhooks/${p === "stripe" ? "stripe" : "hotmart"}`;
+    const url = `${window.location.origin}/api/webhooks/${p}`;
     navigator.clipboard.writeText(url);
     toast.success("URL copiada!");
   };
@@ -494,7 +604,7 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Integrações de Pagamento</h2>
-          <p className="text-sm text-muted-foreground">Configure Hotmart ou Stripe, webhooks, emails automáticos e gerencie compradores</p>
+          <p className="text-sm text-muted-foreground">Configure Hotmart, Stripe, Monetizze ou ClickBank, webhooks, emails automáticos e gerencie compradores</p>
         </div>
         <Select value={selectedArea} onValueChange={setSelectedArea}>
           <SelectTrigger className="w-[260px]">
@@ -530,20 +640,34 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
             <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
               <Package className="h-4 w-4" /> Provedor de Pagamento
             </h3>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setPaymentProvider("hotmart")}
-                className={`flex-1 p-4 rounded-lg border-2 transition-colors text-left ${paymentProvider === "hotmart" ? "border-orange-500 bg-orange-500/10" : "border-border hover:border-muted-foreground/30"}`}
+                className={`p-4 rounded-lg border-2 transition-colors text-left ${paymentProvider === "hotmart" ? "border-orange-500 bg-orange-500/10" : "border-border hover:border-muted-foreground/30"}`}
               >
                 <p className="font-semibold text-sm text-foreground">Hotmart</p>
                 <p className="text-xs text-muted-foreground mt-1">Checkout via iframe com ofuscacao de email</p>
               </button>
               <button
                 onClick={() => setPaymentProvider("stripe")}
-                className={`flex-1 p-4 rounded-lg border-2 transition-colors text-left ${paymentProvider === "stripe" ? "border-purple-500 bg-purple-500/10" : "border-border hover:border-muted-foreground/30"}`}
+                className={`p-4 rounded-lg border-2 transition-colors text-left ${paymentProvider === "stripe" ? "border-purple-500 bg-purple-500/10" : "border-border hover:border-muted-foreground/30"}`}
               >
                 <p className="font-semibold text-sm text-foreground">Stripe</p>
                 <p className="text-xs text-muted-foreground mt-1">Payment Links com redirect e suporte a assinaturas</p>
+              </button>
+              <button
+                onClick={() => setPaymentProvider("monetizze")}
+                className={`p-4 rounded-lg border-2 transition-colors text-left ${paymentProvider === "monetizze" ? "border-green-500 bg-green-500/10" : "border-border hover:border-muted-foreground/30"}`}
+              >
+                <p className="font-semibold text-sm text-foreground">Monetizze</p>
+                <p className="text-xs text-muted-foreground mt-1">Plataforma brasileira com postback automático</p>
+              </button>
+              <button
+                onClick={() => setPaymentProvider("clickbank")}
+                className={`p-4 rounded-lg border-2 transition-colors text-left ${paymentProvider === "clickbank" ? "border-blue-500 bg-blue-500/10" : "border-border hover:border-muted-foreground/30"}`}
+              >
+                <p className="font-semibold text-sm text-foreground">ClickBank</p>
+                <p className="text-xs text-muted-foreground mt-1">Marketplace global com IPN (Instant Notification)</p>
               </button>
             </div>
           </div>
@@ -551,16 +675,16 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
           {/* Webhook URL */}
           <div className="bg-card border border-border rounded-lg p-5 space-y-4">
             <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-              <Link2 className="h-4 w-4" /> URL do Webhook ({paymentProvider === "stripe" ? "Stripe" : "Hotmart"})
+              <Link2 className="h-4 w-4" /> URL do Webhook ({paymentProvider.charAt(0).toUpperCase() + paymentProvider.slice(1)})
             </h3>
             <div className="flex items-center gap-2">
               <Input
                 readOnly
-                value={`${window.location.origin}/api/webhooks/${paymentProvider === "stripe" ? "stripe" : "hotmart"}`}
+                value={`${window.location.origin}/api/webhooks/${paymentProvider}`}
                 className="font-mono text-xs bg-muted"
               />
               <Button variant="outline" size="sm" onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/${paymentProvider === "stripe" ? "stripe" : "hotmart"}`);
+                navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/${paymentProvider}`);
                 toast.success("URL copiada!");
               }} className="gap-2 shrink-0">
                 <Copy className="h-4 w-4" /> Copiar
@@ -569,12 +693,16 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
             <p className="text-xs text-muted-foreground">
               {paymentProvider === "stripe"
                 ? "Cole esta URL no Stripe Dashboard em: Developers > Webhooks > Add endpoint. Eventos: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, charge.refunded"
-                : "Cole esta URL na Hotmart em: Ferramentas > Webhooks > Nova URL > Cole > Selecione \"PURCHASE_APPROVED\""}
+                : paymentProvider === "hotmart"
+                ? "Cole esta URL na Hotmart em: Ferramentas > Webhooks > Nova URL > Cole > Selecione \"PURCHASE_APPROVED\""
+                : paymentProvider === "monetizze"
+                ? "Cole esta URL na Monetizze em: Minha Conta > Configurações > Postback > URL de notificação"
+                : "Cole esta URL no ClickBank em: Settings > My Site > Advanced Tools > Instant Notification URL"}
             </p>
           </div>
 
           {/* Provider-specific config */}
-          {paymentProvider === "hotmart" ? (
+          {paymentProvider === "hotmart" && (
             <div className="bg-card border border-border rounded-lg p-5 space-y-4">
               <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Key className="h-4 w-4" /> Token Hotmart (Hottok)
@@ -594,7 +722,8 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
                 Encontre em: Hotmart &gt; Ferramentas &gt; Webhooks &gt; Configurações &gt; Hottok
               </p>
             </div>
-          ) : (
+          )}
+          {paymentProvider === "stripe" && (
             <div className="bg-card border border-border rounded-lg p-5 space-y-4">
               <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Key className="h-4 w-4" /> Stripe Webhook Secret
@@ -630,6 +759,48 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
               </div>
               <p className="text-xs text-muted-foreground">
                 Encontre em: Stripe Dashboard &gt; Developers &gt; API keys &gt; Secret key
+              </p>
+            </div>
+          )}
+          {paymentProvider === "monetizze" && (
+            <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+              <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Key className="h-4 w-4" /> Token Monetizze
+              </h3>
+              <div className="flex items-center gap-2">
+                <Input
+                  type={showMonetizzeToken ? "text" : "password"}
+                  placeholder="Cole aqui o token da Monetizze"
+                  value={monetizzeToken}
+                  onChange={(e) => setMonetizzeToken(e.target.value)}
+                />
+                <Button variant="ghost" size="icon" onClick={() => setShowMonetizzeToken(!showMonetizzeToken)}>
+                  {showMonetizzeToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Encontre em: Monetizze &gt; Minha Conta &gt; Configurações &gt; Token de Segurança
+              </p>
+            </div>
+          )}
+          {paymentProvider === "clickbank" && (
+            <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+              <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Key className="h-4 w-4" /> ClickBank Secret Key
+              </h3>
+              <div className="flex items-center gap-2">
+                <Input
+                  type={showClickbankSecret ? "text" : "password"}
+                  placeholder="Cole aqui a secret key do ClickBank"
+                  value={clickbankSecretKey}
+                  onChange={(e) => setClickbankSecretKey(e.target.value)}
+                />
+                <Button variant="ghost" size="icon" onClick={() => setShowClickbankSecret(!showClickbankSecret)}>
+                  {showClickbankSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Encontre em: ClickBank &gt; Settings &gt; My Site &gt; Advanced Tools &gt; Secret Key
               </p>
             </div>
           )}
@@ -790,6 +961,126 @@ export function IntegrationsManager({ adminUserId, isSuperAdmin }: IntegrationsM
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* MONETIZZE PRODUCTS */}
+          <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+            <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Plus className="h-4 w-4" /> Mapear Produto Monetizze
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Vincule um produto da Monetizze a esta área. O código do produto está em: Monetizze &gt; Meus Produtos &gt; Detalhes
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">Código do Produto*</label>
+                <Input
+                  placeholder="Ex: 12345"
+                  value={newMonetizzeProductId}
+                  onChange={(e) => setNewMonetizzeProductId(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Nome (opcional)</label>
+                <Input
+                  placeholder="Ex: Curso Completo"
+                  value={newMonetizzeProductName}
+                  onChange={(e) => setNewMonetizzeProductName(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleAddMonetizzeProduct} className="gap-2">
+                <Plus className="h-4 w-4" /> Adicionar Produto Monetizze
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {monetizzeProducts.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-muted-foreground text-sm">Nenhum produto Monetizze mapeado para esta área.</p>
+              </div>
+            ) : (
+              monetizzeProducts.map((p) => (
+                <div key={p.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Package className="h-5 w-5 text-green-400" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {p.product_name || "Produto Monetizze"}
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono">ID: {p.product_id}</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => handleRemoveMonetizzeProduct(p.id)} className="text-destructive hover:text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* CLICKBANK PRODUCTS */}
+          <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+            <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Plus className="h-4 w-4" /> Mapear Produto ClickBank
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Vincule um Item Number do ClickBank a esta área. Encontre em: ClickBank &gt; Vendor Settings &gt; My Products &gt; Item Number
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">Item Number*</label>
+                <Input
+                  placeholder="Ex: my-product-1"
+                  value={newClickbankItemNo}
+                  onChange={(e) => setNewClickbankItemNo(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Nome (opcional)</label>
+                <Input
+                  placeholder="Ex: Complete Course"
+                  value={newClickbankProductName}
+                  onChange={(e) => setNewClickbankProductName(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleAddClickbankProduct} className="gap-2">
+                <Plus className="h-4 w-4" /> Adicionar Produto ClickBank
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {clickbankProducts.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-muted-foreground text-sm">Nenhum produto ClickBank mapeado para esta área.</p>
+              </div>
+            ) : (
+              clickbankProducts.map((p) => (
+                <div key={p.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Package className="h-5 w-5 text-blue-400" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {p.product_name || "Produto ClickBank"}
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono">Item: {p.item_no}</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => handleRemoveClickbankProduct(p.id)} className="text-destructive hover:text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))
             )}
