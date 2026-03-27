@@ -125,6 +125,10 @@ async function sendEmail(resendApiKey: string, from: string, to: string, subject
 // Transaction types: SALE, RFND, CGBK, BILL, CANCEL, UNCANCEL, TEST, etc.
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // ClickBank may send GET to verify the URL is reachable
+  if (req.method === "GET") {
+    return res.status(200).json({ status: "ok" });
+  }
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -158,13 +162,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   try {
+    // Handle ClickBank TEST/ping notifications - always return 200
+    if (transactionType === "TEST" || (!transactionType && !buyerEmail && !itemNo)) {
+      await supabase.from("webhook_logs").insert({
+        ...logEntry,
+        event_type: "clickbank_test",
+        status: "processed",
+        error_message: "ClickBank test/ping notification",
+      });
+      return res.status(200).json({ status: "ok" });
+    }
+
     if (!transactionType || !buyerEmail || !itemNo) {
       await supabase.from("webhook_logs").insert({
         ...logEntry,
         status: "error",
         error_message: "Missing required fields: transactionType, customer email, or item number",
       });
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(200).json({ status: "ignored", reason: "Missing required fields" });
     }
 
     // Find area mapping
@@ -222,7 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // SALE or TEST = grant access
-      if (transactionType === "SALE" || transactionType === "TEST_SALE" || transactionType === "BILL") {
+      if (transactionType === "SALE" || transactionType === "TEST_SALE" || transactionType === "TEST" || transactionType === "BILL") {
         const finalEmail = buyerEmail.toLowerCase().trim();
         const finalName = buyerName;
 
