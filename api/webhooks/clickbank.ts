@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { createClient } from "@supabase/supabase-js";
-import { createHmac } from "crypto";
+import { createDecipheriv, createHash } from "crypto";
 
 interface VercelRequest extends IncomingMessage {
   body: any;
@@ -121,6 +121,39 @@ async function sendEmail(resendApiKey: string, from: string, to: string, subject
   return res.json();
 }
 
+// ─── ClickBank INS 8.0 payload decryption ───
+// INS 8.0 sends: { iv: "base64", notification: "base64_ciphertext" }
+// Key = first 32 chars of hex(sha1(secret)) interpreted as ASCII bytes.
+// Cipher = AES-256-CBC, PKCS7 padding. Result = JSON with the actual fields.
+function decryptInsPayload(body: any, secretKey: string): any {
+  const key = Buffer.from(
+    createHash("sha1").update(secretKey, "utf8").digest("hex").slice(0, 32),
+    "utf8"
+  );
+  const iv = Buffer.from(body.iv, "base64");
+  const ciphertext = Buffer.from(body.notification, "base64");
+  const decipher = createDecipheriv("aes-256-cbc", key, iv);
+  const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  return JSON.parse(plaintext.toString("utf8"));
+}
+
+async function getCandidateSecrets(supabase: ReturnType<typeof getSupabase>): Promise<string[]> {
+  const secrets: string[] = [];
+  const envSecret = process.env.CLICKBANK_SECRET_KEY;
+  if (envSecret) secrets.push(envSecret);
+
+  const { data } = await supabase
+    .from("integration_settings")
+    .select("clickbank_secret_key")
+    .not("clickbank_secret_key", "is", null);
+
+  for (const row of data || []) {
+    const k = (row as any).clickbank_secret_key;
+    if (k && !secrets.includes(k)) secrets.push(k);
+  }
+  return secrets;
+}
+
 // ─── ClickBank IPN (Instant Notification Service) ───
 // Transaction types: SALE, RFND, CGBK, BILL, CANCEL, UNCANCEL, TEST, etc.
 
@@ -134,7 +167,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const supabase = getSupabase();
-  const payload = req.body;
+  let payload = req.body;
+
+  // INS 8.0: payload is encrypted. Detect and decrypt before processing.
+  if (payload && typeof payload === "object" && typeof payload.iv === "string" && typeof payload.notification === "string") {
+    const secrets = await getCandidateSecrets(supabase);
+    if (secrets.length === 0) {
+      await supabase.from("webhook_logs").insert({
+        event_type: "clickbank_encrypted",
+        status: "error",
+        error_message: "Encrypted INS 8.0 payload received but no CLICKBANK_SECRET_KEY configured",
+        raw_payload: payload,
+      });
+      return res.status(200).json({ status: "error", reason: "No secret key configured" });
+    }
+
+    let decrypted: any = null;
+    let lastErr = "";
+    for (const secret of secrets) {
+      try {
+        decrypted = decryptInsPayload(payload, secret);
+        break;
+      } catch (e: unknown) {
+        lastErr = e instanceof Error ? e.message : "decrypt failed";
+      }
+    }
+
+    if (!decrypted) {
+      await supabase.from("webhook_logs").insert({
+        event_type: "clickbank_encrypted",
+        status: "error",
+        error_message: `Failed to decrypt INS payload with any configured secret: ${lastErr}`,
+        raw_payload: payload,
+      });
+      return res.status(200).json({ status: "error", reason: "Decryption failed" });
+    }
+
+    payload = decrypted;
+  }
 
   // ClickBank IPN fields
   const transactionType = payload?.transactionType || payload?.ctransaction;
@@ -205,26 +275,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select("*")
         .eq("area_slug", areaSlug)
         .single();
-
-      // Verify ClickBank secret key if configured
-      const configuredSecret = (settings as any)?.clickbank_secret_key;
-      if (configuredSecret) {
-        const cbVerification = req.headers["x-clickbank-signature"] as string;
-        if (cbVerification) {
-          const expectedSig = createHmac("sha256", configuredSecret)
-            .update(JSON.stringify(payload))
-            .digest("hex");
-          if (cbVerification !== expectedSig) {
-            await supabase.from("webhook_logs").insert({
-              ...logEntry,
-              area_slug: areaSlug,
-              status: "error",
-              error_message: "Invalid ClickBank signature",
-            });
-            continue;
-          }
-        }
-      }
 
       if (settings && !settings.webhook_enabled) {
         await supabase.from("webhook_logs").insert({
